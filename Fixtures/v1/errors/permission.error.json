@@ -1,0 +1,7 @@
+{
+  "error": {
+    "type": "permission_error",
+    "code": "insufficient_scope",
+    "message": "This credential cannot read the requested capability."
+  }
+}

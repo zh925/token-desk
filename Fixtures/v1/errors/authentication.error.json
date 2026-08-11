@@ -1,0 +1,7 @@
+{
+  "error": {
+    "type": "authentication_error",
+    "code": "credential_rejected",
+    "message": "Credential rejected. Replace it and try again."
+  }
+}

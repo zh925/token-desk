@@ -20,8 +20,10 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
-      - name: Scan tracked files
+      - name: Scan worktree for secrets
         run: ./scripts/secret-scan.sh
+      - name: Validate fixture policy and manifest
+        run: ./scripts/fixture-lint.py
 
   quality:
     name: Format, test, and build
