@@ -1,0 +1,512 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 60;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		000000000000000000000301 /* TokenDeskApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000101 /* TokenDeskApp.swift */; };
+		000000000000000000000302 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000102 /* ContentView.swift */; };
+		000000000000000000000303 /* TokenDeskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000104 /* TokenDeskTests.swift */; };
+		000000000000000000000304 /* TokenDeskUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000105 /* TokenDeskUITests.swift */; };
+		000000000000000000000310 /* TokenDeskCore in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000201 /* TokenDeskCore */; };
+		000000000000000000000311 /* TokenDeskData in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000202 /* TokenDeskData */; };
+		000000000000000000000312 /* TokenDeskConnectors in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000203 /* TokenDeskConnectors */; };
+		000000000000000000000313 /* TokenDeskPlatform in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000204 /* TokenDeskPlatform */; };
+		000000000000000000000314 /* TokenDeskDesign in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000205 /* TokenDeskDesign */; };
+		000000000000000000000315 /* TokenDeskFeatures in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000206 /* TokenDeskFeatures */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		000000000000000000000511 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000000000801;
+			remoteInfo = TokenDesk;
+		};
+		000000000000000000000512 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 000000000000000000000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 000000000000000000000801;
+			remoteInfo = TokenDesk;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		000000000000000000000101 /* TokenDeskApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDeskApp.swift; sourceTree = "<group>"; };
+		000000000000000000000102 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		000000000000000000000103 /* TokenDesk.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = TokenDesk.entitlements; sourceTree = "<group>"; };
+		000000000000000000000104 /* TokenDeskTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDeskTests.swift; sourceTree = "<group>"; };
+		000000000000000000000105 /* TokenDeskUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDeskUITests.swift; sourceTree = "<group>"; };
+		000000000000000000000106 /* TokenDesk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenDesk.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000107 /* TokenDeskTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TokenDeskTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000108 /* TokenDeskUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TokenDeskUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		000000000000000000000402 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000310 /* TokenDeskCore in Frameworks */,
+				000000000000000000000311 /* TokenDeskData in Frameworks */,
+				000000000000000000000312 /* TokenDeskConnectors in Frameworks */,
+				000000000000000000000313 /* TokenDeskPlatform in Frameworks */,
+				000000000000000000000314 /* TokenDeskDesign in Frameworks */,
+				000000000000000000000315 /* TokenDeskFeatures in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000405 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000408 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		000000000000000000000002 = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000004 /* TokenDesk */,
+				000000000000000000000005 /* Config */,
+				000000000000000000000006 /* TokenDeskTests */,
+				000000000000000000000007 /* TokenDeskUITests */,
+				000000000000000000000109 /* Frameworks */,
+				000000000000000000000003 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		000000000000000000000003 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000106 /* TokenDesk.app */,
+				000000000000000000000107 /* TokenDeskTests.xctest */,
+				000000000000000000000108 /* TokenDeskUITests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		000000000000000000000004 /* TokenDesk */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000101 /* TokenDeskApp.swift */,
+				000000000000000000000102 /* ContentView.swift */,
+			);
+			path = TokenDesk/App;
+			sourceTree = "<group>";
+		};
+		000000000000000000000005 /* Config */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000103 /* TokenDesk.entitlements */,
+			);
+			path = Config;
+			sourceTree = "<group>";
+		};
+		000000000000000000000006 /* TokenDeskTests */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000104 /* TokenDeskTests.swift */,
+			);
+			path = TokenDeskTests;
+			sourceTree = "<group>";
+		};
+		000000000000000000000007 /* TokenDeskUITests */ = {
+			isa = PBXGroup;
+			children = (
+				000000000000000000000105 /* TokenDeskUITests.swift */,
+			);
+			path = TokenDeskUITests;
+			sourceTree = "<group>";
+		};
+		000000000000000000000109 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		000000000000000000000801 /* TokenDesk */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000702 /* Build configuration list for PBXNativeTarget "TokenDesk" */;
+			buildPhases = (
+				000000000000000000000401 /* Sources */,
+				000000000000000000000402 /* Frameworks */,
+				000000000000000000000403 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TokenDesk;
+			packageProductDependencies = (
+				000000000000000000000201 /* TokenDeskCore */,
+				000000000000000000000202 /* TokenDeskData */,
+				000000000000000000000203 /* TokenDeskConnectors */,
+				000000000000000000000204 /* TokenDeskPlatform */,
+				000000000000000000000205 /* TokenDeskDesign */,
+				000000000000000000000206 /* TokenDeskFeatures */,
+			);
+			productName = TokenDesk;
+			productReference = 000000000000000000000106 /* TokenDesk.app */;
+			productType = "com.apple.product-type.application";
+		};
+		000000000000000000000802 /* TokenDeskTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000703 /* Build configuration list for PBXNativeTarget "TokenDeskTests" */;
+			buildPhases = (
+				000000000000000000000404 /* Sources */,
+				000000000000000000000405 /* Frameworks */,
+				000000000000000000000406 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				000000000000000000000501 /* PBXTargetDependency */,
+			);
+			name = TokenDeskTests;
+			productName = TokenDeskTests;
+			productReference = 000000000000000000000107 /* TokenDeskTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		000000000000000000000803 /* TokenDeskUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 000000000000000000000704 /* Build configuration list for PBXNativeTarget "TokenDeskUITests" */;
+			buildPhases = (
+				000000000000000000000407 /* Sources */,
+				000000000000000000000408 /* Frameworks */,
+				000000000000000000000409 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				000000000000000000000502 /* PBXTargetDependency */,
+			);
+			name = TokenDeskUITests;
+			productName = TokenDeskUITests;
+			productReference = 000000000000000000000108 /* TokenDeskUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		000000000000000000000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 2660;
+				LastUpgradeCheck = 2660;
+				TargetAttributes = {
+					000000000000000000000801 = {
+						CreatedOnToolsVersion = 26.6;
+					};
+					000000000000000000000802 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 000000000000000000000801;
+					};
+					000000000000000000000803 = {
+						CreatedOnToolsVersion = 26.6;
+						TestTargetID = 000000000000000000000801;
+					};
+				};
+			};
+			buildConfigurationList = 000000000000000000000701 /* Build configuration list for PBXProject "TokenDesk" */;
+			compatibilityVersion = "Xcode 15.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 000000000000000000000002;
+			packageReferences = (
+				000000000000000000000110 /* TokenDeskKit */,
+			);
+			productRefGroup = 000000000000000000000003 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				000000000000000000000801 /* TokenDesk */,
+				000000000000000000000802 /* TokenDeskTests */,
+				000000000000000000000803 /* TokenDeskUITests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		000000000000000000000403 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000406 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000409 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		000000000000000000000401 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000301 /* TokenDeskApp.swift in Sources */,
+				000000000000000000000302 /* ContentView.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000404 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000303 /* TokenDeskTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		000000000000000000000407 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				000000000000000000000304 /* TokenDeskUITests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		000000000000000000000501 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000000000801 /* TokenDesk */;
+			targetProxy = 000000000000000000000511 /* PBXContainerItemProxy */;
+		};
+		000000000000000000000502 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 000000000000000000000801 /* TokenDesk */;
+			targetProxy = 000000000000000000000512 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		000000000000000000000601 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				ONLY_ACTIVE_ARCH = YES;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		000000000000000000000602 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CLANG_ANALYZER_LOCALIZABILITY_NONLOCALIZED = YES;
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				COPY_PHASE_STRIP = YES;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_STRICT_CONCURRENCY = complete;
+				SWIFT_TREAT_WARNINGS_AS_ERRORS = YES;
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		000000000000000000000603 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/TokenDesk.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Token Desk";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Token Desk uses your location only to load local weather. You can choose a city manually instead.";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tokendesk.TokenDesk;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Debug;
+		};
+		000000000000000000000604 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = Config/TokenDesk.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = "Token Desk";
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
+				INFOPLIST_KEY_NSLocationUsageDescription = "Token Desk uses your location only to load local weather. You can choose a city manually instead.";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MARKETING_VERSION = 0.1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tokendesk.TokenDesk;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = macosx;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+			};
+			name = Release;
+		};
+		000000000000000000000605 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tokendesk.TokenDeskTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TokenDesk.app/Contents/MacOS/TokenDesk";
+			};
+			name = Debug;
+		};
+		000000000000000000000606 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tokendesk.TokenDeskTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/TokenDesk.app/Contents/MacOS/TokenDesk";
+			};
+			name = Release;
+		};
+		000000000000000000000607 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tokendesk.TokenDeskUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = macosx;
+				TEST_TARGET_NAME = TokenDesk;
+			};
+			name = Debug;
+		};
+		000000000000000000000608 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				GENERATE_INFOPLIST_FILE = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = app.tokendesk.TokenDeskUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SUPPORTED_PLATFORMS = macosx;
+				TEST_TARGET_NAME = TokenDesk;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		000000000000000000000701 /* Build configuration list for PBXProject "TokenDesk" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000601 /* Debug */,
+				000000000000000000000602 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000702 /* Build configuration list for PBXNativeTarget "TokenDesk" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000603 /* Debug */,
+				000000000000000000000604 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000703 /* Build configuration list for PBXNativeTarget "TokenDeskTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000605 /* Debug */,
+				000000000000000000000606 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		000000000000000000000704 /* Build configuration list for PBXNativeTarget "TokenDeskUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				000000000000000000000607 /* Debug */,
+				000000000000000000000608 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		000000000000000000000110 /* TokenDeskKit */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Packages/TokenDeskKit;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		000000000000000000000201 /* TokenDeskCore */ = {isa = XCSwiftPackageProductDependency; productName = TokenDeskCore; };
+		000000000000000000000202 /* TokenDeskData */ = {isa = XCSwiftPackageProductDependency; productName = TokenDeskData; };
+		000000000000000000000203 /* TokenDeskConnectors */ = {isa = XCSwiftPackageProductDependency; productName = TokenDeskConnectors; };
+		000000000000000000000204 /* TokenDeskPlatform */ = {isa = XCSwiftPackageProductDependency; productName = TokenDeskPlatform; };
+		000000000000000000000205 /* TokenDeskDesign */ = {isa = XCSwiftPackageProductDependency; productName = TokenDeskDesign; };
+		000000000000000000000206 /* TokenDeskFeatures */ = {isa = XCSwiftPackageProductDependency; productName = TokenDeskFeatures; };
+/* End XCSwiftPackageProductDependency section */
+	};
+	rootObject = 000000000000000000000001 /* Project object */;
+}
