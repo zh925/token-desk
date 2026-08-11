@@ -1,0 +1,1250 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="color-scheme" content="light">
+  <title>Token Desk — 1280×720 Macintosh Prototype</title>
+  <style>
+    :root {
+      --ink: #111;
+      --paper: #fff;
+      --light: #e7e7e7;
+      --mid: #bcbcbc;
+      --dark: #5b5b5b;
+      --shadow: rgba(0, 0, 0, .34);
+      --canvas-w: 1280;
+      --canvas-h: 720;
+    }
+
+    * { box-sizing: border-box; }
+
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: #242424;
+      color: var(--ink);
+      font-family: Geneva, "ChicagoFLF", Chicago, "Helvetica Neue", Arial, sans-serif;
+      -webkit-font-smoothing: none;
+      font-smooth: never;
+      user-select: none;
+    }
+
+    button, input, select {
+      font: inherit;
+      color: inherit;
+    }
+
+    button { cursor: pointer; }
+
+    .stage {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      overflow: hidden;
+    }
+
+    #mac-screen {
+      position: relative;
+      width: 1280px;
+      height: 720px;
+      transform-origin: center center;
+      overflow: hidden;
+      background-color: #c8c8c8;
+      background-image:
+        linear-gradient(45deg, rgba(0,0,0,.12) 25%, transparent 25%),
+        linear-gradient(-45deg, rgba(0,0,0,.12) 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, rgba(0,0,0,.12) 75%),
+        linear-gradient(-45deg, transparent 75%, rgba(0,0,0,.12) 75%);
+      background-size: 4px 4px;
+      background-position: 0 0, 0 2px, 2px -2px, -2px 0;
+      box-shadow: 0 24px 80px #000;
+      border: 1px solid #000;
+    }
+
+    .app-header {
+      position: absolute;
+      z-index: 100;
+      inset: 0 0 auto 0;
+      height: 58px;
+      display: flex;
+      align-items: center;
+      gap: 18px;
+      padding: 0 24px;
+      background: #fff;
+      border-bottom: 3px solid #111;
+      box-shadow: 0 3px 0 rgba(0,0,0,.22);
+    }
+
+    .app-brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 210px;
+      font: 800 18px Monaco, "Courier New", monospace;
+      letter-spacing: -1px;
+    }
+
+    .app-mark {
+      width: 31px;
+      height: 31px;
+      display: grid;
+      place-items: center;
+      color: #fff;
+      background: #111;
+      border: 2px solid #111;
+      box-shadow: inset 0 0 0 2px #fff;
+      font: 800 15px Monaco, monospace;
+    }
+
+    .app-nav {
+      display: flex;
+      align-self: stretch;
+      gap: 0;
+    }
+
+    .app-nav-button {
+      min-width: 104px;
+      padding: 0 20px;
+      border: 0;
+      border-left: 1px solid #999;
+      background: #fff;
+      font-size: 14px;
+      font-weight: 800;
+    }
+
+    .app-nav-button:last-child { border-right: 1px solid #999; }
+    .app-nav-button:hover,
+    .app-nav-button.active { color: #fff; background: #111; }
+
+    .app-header-spacer { flex: 1; }
+
+    .header-sync {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font: 10px Monaco, "Courier New", monospace;
+    }
+
+    .header-time {
+      padding-left: 10px;
+      border-left: 1px solid #111;
+      color: #444;
+    }
+
+    .apple-menu,
+    .menu-trigger {
+      height: 26px;
+      padding: 2px 11px;
+      border: 0;
+      border-radius: 0;
+      background: transparent;
+    }
+
+    .apple-menu {
+      width: 39px;
+      padding: 0;
+      font-family: Georgia, serif;
+      font-size: 22px;
+      line-height: 24px;
+    }
+
+    .menu-trigger:hover,
+    .menu-trigger[aria-expanded="true"],
+    .apple-menu:hover,
+    .apple-menu[aria-expanded="true"] {
+      color: #fff;
+      background: #111;
+    }
+
+    .menu-spacer { flex: 1; }
+
+    .menu-clock {
+      min-width: 120px;
+      text-align: right;
+      padding-right: 4px;
+      font-family: Monaco, "Courier New", monospace;
+      font-size: 14px;
+    }
+
+    .menu-panel {
+      position: absolute;
+      z-index: 110;
+      top: 28px;
+      min-width: 222px;
+      padding: 4px 0;
+      background: #fff;
+      border: 2px solid #111;
+      box-shadow: 4px 4px 0 rgba(0,0,0,.45);
+    }
+
+    .menu-panel[hidden] { display: none; }
+
+    .menu-item {
+      width: 100%;
+      height: 29px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      padding: 0 18px;
+      border: 0;
+      background: #fff;
+      text-align: left;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .menu-item:hover,
+    .menu-item:focus-visible {
+      color: #fff;
+      background: #111;
+      outline: none;
+    }
+
+    .menu-separator {
+      height: 2px;
+      margin: 4px 0;
+      background: #111;
+    }
+
+    #menu-apple { left: 8px; }
+    #menu-file { left: 48px; }
+    #menu-view { left: 132px; }
+    #menu-help { left: 224px; }
+
+    .desktop {
+      position: absolute;
+      inset: 58px 0 0;
+    }
+
+    .page {
+      position: absolute;
+      inset: 0;
+      display: none;
+    }
+
+    .page.active { display: block; }
+
+    .window {
+      position: absolute;
+      overflow: hidden;
+      background: #fff;
+      border: 2px solid #111;
+      box-shadow: 3px 3px 0 rgba(0,0,0,.32);
+    }
+
+    .window::after {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      pointer-events: none;
+      border: 1px solid #111;
+    }
+
+    .window-titlebar {
+      position: relative;
+      z-index: 2;
+      height: 29px;
+      display: grid;
+      grid-template-columns: 1fr;
+      align-items: center;
+      border-bottom: 2px solid #111;
+      background:
+        repeating-linear-gradient(to bottom, #fff 0, #fff 2px, #111 2px, #111 3px);
+      cursor: default;
+    }
+
+    .window-titlebar:active { cursor: default; }
+
+    .window-title {
+      justify-self: center;
+      padding: 1px 10px 2px;
+      background: #fff;
+      font-size: 14px;
+      font-weight: 800;
+      line-height: 18px;
+      white-space: nowrap;
+    }
+
+    .close-box,
+    .zoom-box {
+      display: none;
+    }
+
+    .close-box:active,
+    .zoom-box:active { background: #111; }
+
+    .zoom-box::before {
+      content: "";
+      position: absolute;
+      inset: 2px;
+      border: 1px solid #111;
+    }
+
+    .window-content {
+      position: relative;
+      z-index: 1;
+      height: calc(100% - 29px);
+      padding: 20px;
+    }
+
+    .desktop-icon {
+      position: absolute;
+      z-index: 20;
+      width: 82px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+      border: 0;
+      padding: 3px;
+      background: transparent;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .desktop-icon:nth-of-type(1) { top: 22px; right: 18px; }
+    .desktop-icon:nth-of-type(2) { top: 125px; right: 18px; }
+    .desktop-icon:nth-of-type(3) { top: 228px; right: 18px; }
+    .desktop-icon:nth-of-type(4) { top: 331px; right: 18px; }
+
+    .desktop-icon:focus-visible { outline: 2px dotted #111; }
+    .desktop-icon.active .icon-label,
+    .desktop-icon:hover .icon-label { color: #fff; background: #111; }
+
+    .icon-label { padding: 2px 5px; }
+
+    .pixel-icon {
+      position: relative;
+      width: 48px;
+      height: 48px;
+      background: #fff;
+      border: 2px solid #111;
+      box-shadow: 3px 3px 0 #111;
+    }
+
+    .pixel-icon::before,
+    .pixel-icon::after { content: ""; position: absolute; }
+
+    .icon-overview::before {
+      inset: 7px;
+      background:
+        linear-gradient(#111,#111) 0 0/100% 4px no-repeat,
+        linear-gradient(#111,#111) 0 10px/14px 14px no-repeat,
+        linear-gradient(#111,#111) 20px 10px/14px 14px no-repeat,
+        linear-gradient(#111,#111) 0 28px/34px 4px no-repeat;
+    }
+
+    .icon-plans::before {
+      left: 8px; right: 8px; bottom: 8px; height: 27px;
+      border-left: 3px solid #111; border-bottom: 3px solid #111;
+      background:
+        linear-gradient(to top, #111 0 11px, transparent 11px) 5px 100%/5px 100% no-repeat,
+        linear-gradient(to top, #111 0 20px, transparent 20px) 14px 100%/5px 100% no-repeat,
+        linear-gradient(to top, #111 0 15px, transparent 15px) 23px 100%/5px 100% no-repeat;
+    }
+
+    .icon-tokens::before {
+      width: 26px; height: 26px; border: 3px solid #111; border-radius: 50%;
+      top: 8px; left: 8px;
+    }
+
+    .icon-tokens::after {
+      content: "T"; left: 16px; top: 10px; font: 800 19px Monaco, monospace;
+    }
+
+    .icon-settings::before {
+      content: "✣"; inset: 0; display: grid; place-items: center;
+      font: 31px Georgia, serif;
+    }
+
+    .status-strip {
+      display: none;
+      position: absolute;
+      z-index: 50;
+      left: 14px;
+      right: 14px;
+      bottom: 10px;
+      height: 27px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 0 10px;
+      background: #fff;
+      border: 2px solid #111;
+      box-shadow: 2px 2px 0 rgba(0,0,0,.32);
+      font: 12px Monaco, "Courier New", monospace;
+    }
+
+    .status-led {
+      width: 10px;
+      height: 10px;
+      background: #111;
+      border: 1px solid #111;
+      box-shadow: inset 0 0 0 2px #fff;
+    }
+
+    .status-led.syncing { animation: blink .35s steps(1) infinite; }
+    .status-spacer { flex: 1; }
+
+    @keyframes blink { 50% { background: #fff; } }
+
+    /* Overview */
+    #overview-clock { left: 28px; top: 25px; width: 380px; height: 267px; }
+    #overview-weather { left: 28px; top: 310px; width: 380px; height: 319px; }
+    #overview-usage { left: 430px; top: 25px; width: 814px; height: 604px; }
+
+    .clock-date {
+      font-size: 16px;
+      font-weight: 800;
+      border-bottom: 2px solid #111;
+      padding-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .big-clock {
+      margin-top: 16px;
+      font: 800 72px Monaco, "Courier New", monospace;
+      letter-spacing: -7px;
+      line-height: 1;
+    }
+
+    .clock-seconds { font-size: 27px; letter-spacing: -3px; }
+    .clock-city { margin-top: 14px; font-size: 15px; font-weight: 700; }
+
+    .weather-now {
+      display: grid;
+      grid-template-columns: 112px 1fr;
+      align-items: center;
+      border-bottom: 2px solid #111;
+      padding-bottom: 14px;
+    }
+
+    .sun-pixel {
+      position: relative;
+      width: 66px;
+      height: 66px;
+      margin-left: 11px;
+    }
+
+    .sun-pixel::before {
+      content: "";
+      position: absolute;
+      left: 18px;
+      top: 18px;
+      width: 30px;
+      height: 30px;
+      border: 3px solid #111;
+      border-radius: 50%;
+      background: repeating-linear-gradient(45deg, #111 0 2px, #fff 2px 4px);
+    }
+
+    .sun-pixel::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background:
+        linear-gradient(#111,#111) 31px 0/4px 12px no-repeat,
+        linear-gradient(#111,#111) 31px 54px/4px 12px no-repeat,
+        linear-gradient(90deg,#111,#111) 0 31px/12px 4px no-repeat,
+        linear-gradient(90deg,#111,#111) 54px 31px/12px 4px no-repeat,
+        linear-gradient(45deg, transparent 42%, #111 42%, #111 58%, transparent 58%) 7px 7px/12px 12px no-repeat,
+        linear-gradient(-45deg, transparent 42%, #111 42%, #111 58%, transparent 58%) 47px 7px/12px 12px no-repeat,
+        linear-gradient(-45deg, transparent 42%, #111 42%, #111 58%, transparent 58%) 7px 47px/12px 12px no-repeat,
+        linear-gradient(45deg, transparent 42%, #111 42%, #111 58%, transparent 58%) 47px 47px/12px 12px no-repeat;
+    }
+
+    .weather-temp { font: 800 48px Monaco, monospace; letter-spacing: -5px; }
+    .weather-desc { margin-top: 2px; font-size: 15px; font-weight: 800; }
+    .weather-meta { margin-top: 5px; font: 12px Monaco, monospace; }
+
+    .hourly-grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      margin-top: 16px;
+    }
+
+    .hourly {
+      min-height: 80px;
+      padding: 0 8px;
+      border-right: 1px solid #111;
+      text-align: center;
+      font: 12px Monaco, monospace;
+    }
+
+    .hourly:last-child { border-right: 0; }
+    .mini-weather { font-size: 22px; margin: 7px 0 5px; }
+
+    .usage-header {
+      display: flex;
+      align-items: flex-end;
+      border-bottom: 2px solid #111;
+      padding-bottom: 12px;
+    }
+
+    .usage-title { font-size: 24px; font-weight: 800; }
+    .usage-subtitle { margin-left: 11px; color: #333; font: 12px Monaco, monospace; }
+    .usage-total { margin-left: auto; text-align: right; }
+    .usage-total strong { display: block; font: 800 28px Monaco, monospace; letter-spacing: -2px; }
+    .usage-total span { font-size: 12px; font-weight: 700; }
+
+    .plan-card {
+      display: grid;
+      grid-template-columns: 1fr 220px;
+      min-height: 198px;
+      margin-top: 16px;
+      border: 2px solid #111;
+      box-shadow: inset 0 0 0 2px #fff, inset 0 0 0 3px #111;
+      background: #fff;
+    }
+
+    .plan-info { padding: 20px 21px; }
+    .plan-label { font: 800 22px Monaco, monospace; }
+    .plan-type { margin: 5px 0 16px; font-size: 13px; font-weight: 700; }
+    .plan-percent { font: 800 48px Monaco, monospace; letter-spacing: -5px; }
+    .plan-reset { margin-top: 10px; font: 12px Monaco, monospace; }
+
+    .meter {
+      height: 24px;
+      margin-top: 14px;
+      padding: 3px;
+      border: 2px solid #111;
+      background: #fff;
+    }
+
+    .meter-fill {
+      width: 42%;
+      height: 100%;
+      background: repeating-linear-gradient(45deg, #111 0 3px, #fff 3px 6px);
+      border-right: 2px solid #111;
+      transition: width .45s steps(8);
+    }
+
+    .plan-mini-chart {
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      gap: 11px;
+      padding: 23px 20px 30px;
+      border-left: 2px solid #111;
+      background-color: #eee;
+      background-image: radial-gradient(#777 .8px, transparent .8px);
+      background-size: 3px 3px;
+    }
+
+    .mini-bar {
+      width: 18px;
+      border: 2px solid #111;
+      border-bottom-width: 4px;
+      background: #fff;
+    }
+
+    .mini-bar:nth-child(1) { height: 48px; }
+    .mini-bar:nth-child(2) { height: 66px; background: repeating-linear-gradient(45deg,#111 0 2px,#fff 2px 4px); }
+    .mini-bar:nth-child(3) { height: 55px; }
+    .mini-bar:nth-child(4) { height: 91px; background: repeating-linear-gradient(45deg,#111 0 2px,#fff 2px 4px); }
+    .mini-bar:nth-child(5) { height: 78px; }
+    .mini-bar:nth-child(6) { height: 102px; background: #111; }
+    .mini-bar:nth-child(7) { height: 61px; }
+
+    .provider-cards {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      margin-top: 16px;
+    }
+
+    .provider-card {
+      min-height: 180px;
+      padding: 17px 18px;
+      border: 2px solid #111;
+      background: #fff;
+    }
+
+    .provider-card-head { display: flex; align-items: center; gap: 9px; }
+    .provider-logo {
+      width: 24px; height: 24px; display: grid; place-items: center;
+      border: 2px solid #111; font: 800 13px Monaco, monospace;
+    }
+    .provider-name { font-size: 17px; font-weight: 800; }
+    .provider-kind { margin-left: auto; font: 10px Monaco, monospace; }
+    .provider-amount { margin-top: 16px; font: 800 27px Monaco, monospace; letter-spacing: -2px; }
+    .provider-caption { margin-top: 4px; font-size: 12px; }
+    .provider-line { height: 2px; margin: 14px 0 10px; background: #111; }
+    .provider-foot { display: flex; justify-content: space-between; font: 11px Monaco, monospace; }
+
+    .classic-button {
+      min-width: 88px;
+      height: 29px;
+      padding: 2px 14px;
+      border: 2px solid #111;
+      border-radius: 7px;
+      background: #fff;
+      box-shadow: inset 0 0 0 1px #fff, 1px 1px 0 #111;
+      font-size: 13px;
+      font-weight: 800;
+    }
+
+    .classic-button:hover,
+    .classic-button:focus-visible { color: #fff; background: #111; outline: none; }
+    .classic-button.primary { border-width: 3px; }
+
+    /* Plan page */
+    #plans-main { left: 48px; top: 32px; width: 1184px; height: 587px; }
+    .section-toolbar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      height: 42px;
+      border-bottom: 2px solid #111;
+      padding-bottom: 12px;
+    }
+    .section-toolbar h1 { margin: 0; font-size: 23px; }
+    .section-toolbar .toolbar-note { margin-left: 6px; font: 11px Monaco, monospace; }
+    .section-toolbar .toolbar-actions { margin-left: auto; display: flex; gap: 8px; }
+
+    .plan-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin-top: 18px;
+    }
+
+    .quota-card { border: 2px solid #111; min-height: 188px; padding: 17px; }
+    .quota-card.selected { box-shadow: inset 0 0 0 3px #fff, inset 0 0 0 5px #111; }
+    .quota-top { display: flex; align-items: center; }
+    .quota-title { font-size: 18px; font-weight: 800; }
+    .quota-badge { margin-left: auto; padding: 3px 6px; color: #fff; background: #111; font: 10px Monaco, monospace; }
+    .quota-value { margin-top: 18px; font: 800 37px Monaco, monospace; letter-spacing: -4px; }
+    .quota-rows { display: grid; grid-template-columns: 1fr 1fr; margin-top: 13px; border-top: 1px solid #111; padding-top: 10px; font: 11px Monaco, monospace; }
+
+    .rules-box {
+      margin-top: 16px;
+      padding: 13px 15px;
+      border: 2px solid #111;
+      background: repeating-linear-gradient(135deg, #fff 0 6px, #eee 6px 12px);
+      font: 12px Monaco, monospace;
+    }
+
+    /* Token page */
+    #tokens-main { left: 36px; top: 27px; width: 1208px; height: 606px; }
+    .token-layout { display: grid; grid-template-columns: 246px 1fr; gap: 20px; margin-top: 18px; height: 477px; }
+    .provider-sidebar { border: 2px solid #111; overflow: hidden; }
+    .provider-row {
+      width: 100%; height: 52px; display: grid; grid-template-columns: 33px 1fr auto; align-items: center;
+      gap: 8px; padding: 0 12px; border: 0; border-bottom: 1px solid #111; background: #fff; text-align: left;
+    }
+    .provider-row:hover,
+    .provider-row.active { color: #fff; background: #111; }
+    .provider-row .provider-logo { border-color: currentColor; }
+    .provider-row small { font: 9px Monaco, monospace; }
+
+    .token-detail { display: grid; grid-template-rows: 112px 1fr 83px; gap: 14px; }
+    .token-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+    .metric-box { border: 2px solid #111; padding: 14px 15px; }
+    .metric-label { font-size: 12px; font-weight: 800; }
+    .metric-value { margin-top: 10px; font: 800 25px Monaco, monospace; letter-spacing: -2px; }
+    .metric-delta { margin-top: 6px; font: 10px Monaco, monospace; }
+
+    .chart-box { position: relative; border: 2px solid #111; padding: 18px 17px 25px 49px; overflow: hidden; }
+    .chart-grid {
+      position: absolute; inset: 18px 17px 25px 49px;
+      background:
+        repeating-linear-gradient(to bottom, transparent 0 46px, #aaa 46px 47px),
+        repeating-linear-gradient(to right, transparent 0 83px, #ddd 83px 84px);
+      border-left: 2px solid #111; border-bottom: 2px solid #111;
+    }
+    .chart-bars { position: absolute; z-index: 2; inset: 33px 30px 27px 61px; display: flex; align-items: flex-end; gap: 17px; }
+    .chart-column { flex: 1; height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: stretch; position: relative; }
+    .chart-bar { border: 2px solid #111; border-bottom: 0; background: #fff; min-height: 8px; transition: height .32s steps(7); }
+    .chart-bar.output { background: repeating-linear-gradient(45deg,#111 0 2px,#fff 2px 4px); }
+    .chart-day { position: absolute; top: calc(100% + 7px); left: 0; right: 0; text-align: center; font: 9px Monaco, monospace; }
+    .chart-legend { position: absolute; top: 8px; right: 15px; z-index: 3; display: flex; gap: 13px; padding: 3px 5px; background: #fff; font: 9px Monaco, monospace; }
+    .legend-key { display: inline-block; width: 13px; height: 9px; border: 1px solid #111; margin-right: 4px; }
+    .legend-key.output { background: repeating-linear-gradient(45deg,#111 0 1px,#fff 1px 3px); }
+    .token-footer { display: grid; grid-template-columns: 1fr 1fr 1fr; border: 2px solid #111; }
+    .token-foot-item { padding: 10px 13px; border-right: 1px solid #111; font: 10px Monaco, monospace; }
+    .token-foot-item:last-child { border: 0; }
+    .token-foot-item strong { display: block; margin-top: 6px; font-size: 14px; }
+
+    /* Settings page */
+    #settings-main { left: 116px; top: 38px; width: 1048px; height: 579px; }
+    .settings-tabs { display: flex; gap: 0; border-bottom: 2px solid #111; }
+    .settings-tab { min-width: 150px; height: 34px; border: 2px solid #111; border-bottom: 0; background: #ddd; font-weight: 800; }
+    .settings-tab.active { background: #fff; transform: translateY(2px); }
+    .settings-pane { display: none; height: 414px; padding-top: 18px; }
+    .settings-pane.active { display: block; }
+    .form-grid { display: grid; grid-template-columns: 155px 1fr; gap: 14px 16px; align-items: center; }
+    .form-grid label { text-align: right; font-size: 13px; font-weight: 800; }
+    .classic-input, .classic-select {
+      width: 100%; height: 32px; padding: 4px 8px; border: 2px solid #111; border-radius: 0; background: #fff;
+      box-shadow: inset 2px 2px 0 #bbb; font: 12px Monaco, monospace; user-select: text;
+    }
+    .classic-input:focus, .classic-select:focus { outline: 2px dotted #111; outline-offset: 2px; }
+    .checkbox-line { display: flex; align-items: center; gap: 10px; font-size: 12px; }
+    .checkbox-line input { width: 17px; height: 17px; accent-color: #111; }
+    .provider-config-list { border: 2px solid #111; }
+    .provider-config-row { height: 60px; display: grid; grid-template-columns: 36px 1fr 130px 96px; gap: 10px; align-items: center; padding: 0 13px; border-bottom: 1px solid #111; }
+    .provider-config-row:last-child { border: 0; }
+    .provider-config-row strong { display: block; font-size: 13px; }
+    .provider-config-row small { font: 9px Monaco, monospace; }
+    .connection-state { font: 10px Monaco, monospace; }
+    .settings-actions { position: absolute; left: 20px; right: 20px; bottom: 16px; display: flex; justify-content: flex-end; gap: 10px; }
+    .info-box { border: 2px solid #111; padding: 13px; background: repeating-linear-gradient(135deg,#eee 0 5px,#fff 5px 10px); font: 11px/1.7 Monaco, monospace; }
+
+    /* Dialogs */
+    .dialog-scrim {
+      position: absolute;
+      z-index: 200;
+      inset: 58px 0 0;
+      display: grid;
+      place-items: center;
+      background: rgba(255,255,255,.23);
+    }
+    .dialog-scrim[hidden] { display: none; }
+    .dialog {
+      width: 480px;
+      min-height: 198px;
+      padding: 24px 25px 20px;
+      background: #fff;
+      border: 3px solid #111;
+      box-shadow: 7px 7px 0 rgba(0,0,0,.45), inset 0 0 0 2px #fff, inset 0 0 0 4px #111;
+    }
+    .dialog-body { display: grid; grid-template-columns: 72px 1fr; gap: 18px; align-items: start; }
+    .dialog-icon { width: 58px; height: 58px; display: grid; place-items: center; border: 3px solid #111; border-radius: 50%; font: 800 33px Monaco, monospace; }
+    .dialog h2 { margin: 2px 0 10px; font-size: 19px; }
+    .dialog p { margin: 0; font: 12px/1.55 Monaco, monospace; }
+    .dialog-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+
+    .startup {
+      display: none;
+      position: absolute;
+      z-index: 300;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      background: #c8c8c8;
+      background-image: radial-gradient(#777 .8px, transparent .8px);
+      background-size: 3px 3px;
+      transition: opacity .25s linear;
+    }
+    .startup.hidden { opacity: 0; pointer-events: none; }
+    .startup-card { width: 480px; padding: 35px 32px 28px; text-align: center; background: #fff; border: 3px solid #111; box-shadow: 8px 8px 0 #111; }
+    .startup-mac { width: 96px; height: 112px; margin: auto; border: 4px solid #111; border-radius: 6px; position: relative; background: #eee; }
+    .startup-screen { position: absolute; top: 13px; left: 13px; width: 62px; height: 48px; background: #fff; border: 3px solid #111; }
+    .startup-screen::before { content: "•  •"; position: absolute; top: 7px; left: 12px; font: 800 13px Monaco, monospace; }
+    .startup-screen::after { content: "⌣"; position: absolute; left: 21px; top: 17px; font: 20px Georgia, serif; }
+    .startup-drive { position: absolute; bottom: 15px; left: 24px; width: 48px; height: 5px; background: #111; }
+    .startup h1 { margin: 25px 0 6px; font-size: 25px; }
+    .startup p { margin: 0; font: 12px Monaco, monospace; }
+    .startup-progress { height: 18px; border: 2px solid #111; padding: 2px; margin: 23px auto 0; width: 270px; }
+    .startup-progress > div { height: 100%; width: 0; background: repeating-linear-gradient(45deg,#111 0 3px,#fff 3px 6px); animation: boot 1s steps(10) forwards; }
+    @keyframes boot { to { width: 100%; } }
+
+    .toast {
+      position: absolute;
+      z-index: 170;
+      left: 50%;
+      bottom: 45px;
+      transform: translate(-50%, 16px);
+      min-width: 320px;
+      padding: 10px 18px;
+      color: #fff;
+      background: #111;
+      border: 2px solid #fff;
+      box-shadow: 0 0 0 2px #111, 4px 4px 0 rgba(0,0,0,.35);
+      text-align: center;
+      font: 12px Monaco, monospace;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity .15s, transform .15s;
+    }
+    .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+    /* Larger type pass for a five-inch 1280×720 display. */
+    .app-brand { font-size: 20px; }
+    .app-nav-button { font-size: 16px; }
+    .header-sync { font-size: 11px; }
+    .window-title { font-size: 16px; }
+    .classic-button { font-size: 15px; }
+
+    .clock-date { font-size: 18px; }
+    .clock-city { font-size: 17px; }
+    .weather-desc { font-size: 17px; }
+    .weather-meta { font-size: 14px; }
+    .hourly { font-size: 14px; }
+
+    .usage-title { font-size: 27px; }
+    .usage-subtitle { font-size: 14px; }
+    .usage-total strong { font-size: 31px; }
+    .usage-total span { font-size: 14px; }
+    .plan-label { font-size: 24px; }
+    .plan-type { font-size: 15px; }
+    .plan-reset { font-size: 14px; }
+    .provider-name { font-size: 19px; }
+    .provider-kind { font-size: 11px; }
+    .provider-amount { font-size: 31px; }
+    .provider-caption { font-size: 14px; }
+    .provider-foot { font-size: 13px; }
+
+    .section-toolbar h1 { font-size: 27px; }
+    .section-toolbar .toolbar-note { font-size: 12px; }
+    .quota-title { font-size: 20px; }
+    .quota-badge { font-size: 11px; }
+    .quota-rows { font-size: 13px; }
+    .quota-card p[style] { font-size: 14px !important; }
+    .rules-box { font-size: 14px; }
+
+    .provider-row strong { font-size: 14px; }
+    .provider-row small { font-size: 11px; }
+    .metric-label { font-size: 14px; }
+    .metric-value { font-size: 29px; }
+    .metric-delta { font-size: 12px; }
+    .token-foot-item { font-size: 12px; }
+    .token-foot-item strong { font-size: 16px; }
+
+    .settings-tab { font-size: 16px; }
+    .form-grid label { font-size: 15px; }
+    .classic-input,
+    .classic-select { font-size: 14px; }
+    .checkbox-line { font-size: 14px; }
+    .provider-config-row strong { font-size: 15px; }
+    .provider-config-row small { font-size: 11px; }
+    .connection-state { font-size: 12px; }
+    .info-box { font-size: 13px; }
+    .dialog h2 { font-size: 21px; }
+    .dialog p { font-size: 14px; }
+
+    .sr-only {
+      position: absolute !important;
+      width: 1px !important;
+      height: 1px !important;
+      padding: 0 !important;
+      margin: -1px !important;
+      overflow: hidden !important;
+      clip: rect(0,0,0,0) !important;
+      white-space: nowrap !important;
+      border: 0 !important;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="stage">
+    <main id="mac-screen" aria-label="Token Desk 1280 乘 720 交互原型">
+      <header class="app-header" aria-label="Token Desk 软件导航">
+        <div class="app-brand"><span class="app-mark" aria-hidden="true">T</span><span>Token Desk</span></div>
+        <nav class="app-nav" aria-label="主要页面">
+          <button class="app-nav-button active" data-page="overview">总览</button>
+          <button class="app-nav-button" data-page="plans">套餐</button>
+          <button class="app-nav-button" data-page="tokens">Token</button>
+        </nav>
+        <div class="app-header-spacer"></div>
+        <div class="header-sync" aria-live="polite">
+          <span class="status-led" id="status-led"></span>
+          <span id="sync-status">所有 Provider 已同步</span>
+          <span class="header-time" id="last-sync">最后更新 09:40</span>
+        </div>
+        <button class="classic-button" data-action="refresh">同步</button>
+        <button class="classic-button primary" data-page="settings">设置</button>
+      </header>
+
+      <section class="desktop">
+        <div class="page active" id="page-overview" aria-label="总览页面">
+          <article class="window" id="overview-clock">
+            <div class="window-titlebar">
+              <button class="close-box" aria-label="关闭时钟窗口"></button>
+              <div class="window-title">时钟</div>
+              <button class="zoom-box" aria-label="缩放时钟窗口"></button>
+            </div>
+            <div class="window-content">
+              <div class="clock-date" id="clock-date">2026年8月11日 · 星期二</div>
+              <div class="big-clock"><span id="clock-hours">09</span><span id="clock-colon">:</span><span id="clock-minutes">41</span><span class="clock-seconds" id="clock-seconds">:08</span></div>
+              <div class="clock-city">上海 · 中国标准时间</div>
+            </div>
+          </article>
+
+          <article class="window" id="overview-weather">
+            <div class="window-titlebar">
+              <button class="close-box" aria-label="关闭天气窗口"></button>
+              <div class="window-title">上海天气</div>
+              <button class="zoom-box" aria-label="缩放天气窗口"></button>
+            </div>
+            <div class="window-content">
+              <div class="weather-now">
+                <div class="sun-pixel" aria-label="晴朗"></div>
+                <div>
+                  <div class="weather-temp">31°</div>
+                  <div class="weather-desc">晴朗 · 体感 34°</div>
+                  <div class="weather-meta">降雨 10% · 湿度 63%</div>
+                </div>
+              </div>
+              <div class="hourly-grid" aria-label="逐小时天气">
+                <div class="hourly">现在<div class="mini-weather">☀</div><strong>31°</strong></div>
+                <div class="hourly">11时<div class="mini-weather">☀</div><strong>32°</strong></div>
+                <div class="hourly">13时<div class="mini-weather">◉</div><strong>34°</strong></div>
+                <div class="hourly">15时<div class="mini-weather">☀</div><strong>33°</strong></div>
+              </div>
+            </div>
+          </article>
+
+          <article class="window" id="overview-usage">
+            <div class="window-titlebar">
+              <button class="close-box" aria-label="关闭 AI 用量窗口"></button>
+              <div class="window-title">AI 用量总览</div>
+              <button class="zoom-box" aria-label="缩放 AI 用量窗口"></button>
+            </div>
+            <div class="window-content">
+              <div class="usage-header">
+                <div><div class="usage-title">用量监视器</div><div class="usage-subtitle">套餐 + TOKEN 计费</div></div>
+                <div class="usage-total"><strong data-sensitive>$32.28</strong><span>本月预计费用</span></div>
+              </div>
+
+              <div class="plan-card">
+                <div class="plan-info">
+                  <div class="plan-label">Codex Pro</div>
+                  <div class="plan-type">主额度窗口 · 本周</div>
+                  <div class="plan-percent"><span class="plan-used">42</span>%</div>
+                  <div class="meter" aria-label="Codex 套餐已使用 42%"><div class="meter-fill"></div></div>
+                  <div class="plan-reset">3 小时 18 分后重置</div>
+                </div>
+                <div class="plan-mini-chart" aria-label="最近七日套餐用量柱状图">
+                  <i class="mini-bar"></i><i class="mini-bar"></i><i class="mini-bar"></i><i class="mini-bar"></i><i class="mini-bar"></i><i class="mini-bar"></i><i class="mini-bar"></i>
+                </div>
+              </div>
+
+              <div class="provider-cards">
+                <div class="provider-card">
+                  <div class="provider-card-head"><span class="provider-logo">O</span><span class="provider-name">OpenAI API</span><span class="provider-kind">TOKEN</span></div>
+                  <div class="provider-amount" data-sensitive>$3.82</div>
+                  <div class="provider-caption">今日 · 1.28M tokens</div>
+                  <div class="provider-line"></div>
+                  <div class="provider-foot"><span>本月 $28.46</span><span>预算 57%</span></div>
+                </div>
+                <div class="provider-card">
+                  <div class="provider-card-head"><span class="provider-logo">D</span><span class="provider-name">DeepSeek</span><span class="provider-kind">余额</span></div>
+                  <div class="provider-amount" data-sensitive>¥86.40</div>
+                  <div class="provider-caption">今日 · 238K tokens</div>
+                  <div class="provider-line"></div>
+                  <div class="provider-foot"><span>连接正常</span><span>刚刚同步</span></div>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="page" id="page-plans" aria-label="套餐用量页面">
+          <article class="window" id="plans-main">
+            <div class="window-titlebar">
+              <button class="close-box" aria-label="关闭套餐窗口"></button>
+              <div class="window-title">套餐额度</div>
+              <button class="zoom-box" aria-label="缩放套餐窗口"></button>
+            </div>
+            <div class="window-content">
+              <div class="section-toolbar">
+                <h1>套餐计划</h1><span class="toolbar-note">额度按 Provider 的原始窗口显示，不换算为虚拟 Token</span>
+                <div class="toolbar-actions"><button class="classic-button" data-action="refresh">同步</button></div>
+              </div>
+              <div class="plan-list">
+                <div class="quota-card selected">
+                  <div class="quota-top"><span class="provider-logo">C</span><span class="quota-title">&nbsp;Codex Pro</span><span class="quota-badge">当前计划</span></div>
+                  <div class="quota-value"><span class="plan-used">42</span>% 已使用</div>
+                  <div class="meter"><div class="meter-fill"></div></div>
+                  <div class="quota-rows"><span>窗口：5 小时</span><span>重置：12:59</span></div>
+                </div>
+                <div class="quota-card">
+                  <div class="quota-top"><span class="provider-logo">C</span><span class="quota-title">&nbsp;Codex 其他模型</span><span class="quota-badge">周额度</span></div>
+                  <div class="quota-value">68% 已使用</div>
+                  <div class="meter"><div class="meter-fill" style="width:68%"></div></div>
+                  <div class="quota-rows"><span>窗口：7 天</span><span>重置：周一 08:00</span></div>
+                </div>
+                <div class="quota-card">
+                  <div class="quota-top"><span class="provider-logo">A</span><span class="quota-title">&nbsp;Anthropic Max</span><span class="quota-badge">本地估算</span></div>
+                  <div class="quota-value">31% 已使用</div>
+                  <div class="meter"><div class="meter-fill" style="width:31%"></div></div>
+                  <div class="quota-rows"><span>来源：本地记录</span><span>置信度：中</span></div>
+                </div>
+                <div class="quota-card">
+                  <div class="quota-top"><span class="provider-logo">i</span><span class="quota-title">&nbsp;额度显示规则</span><span class="quota-badge">说明</span></div>
+                  <p style="font:12px/1.7 Monaco,monospace;margin:24px 0 0">官方接口优先显示实际窗口；无公开接口时使用本地请求记录估算，并明确标注数据置信度。</p>
+                  <div class="quota-rows"><span>实际数据：●</span><span>本地估算：○</span></div>
+                </div>
+              </div>
+              <div class="rules-box">提示：套餐百分比是服务商提供或本地估算的“用量窗口”，不会与 API 按 Token 计费混合计算。</div>
+            </div>
+          </article>
+        </div>
+
+        <div class="page" id="page-tokens" aria-label="Token 计费页面">
+          <article class="window" id="tokens-main">
+            <div class="window-titlebar">
+              <button class="close-box" aria-label="关闭 Token 窗口"></button>
+              <div class="window-title">Token 计费</div>
+              <button class="zoom-box" aria-label="缩放 Token 窗口"></button>
+            </div>
+            <div class="window-content">
+              <div class="section-toolbar">
+                <h1 id="token-provider-title">OpenAI API</h1><span class="toolbar-note" id="token-period-label">最近 7 天</span>
+                <div class="toolbar-actions"><button class="classic-button range-button" data-range="day">日</button><button class="classic-button range-button" data-range="week">周</button><button class="classic-button range-button" data-range="month">月</button></div>
+              </div>
+              <div class="token-layout">
+                <aside class="provider-sidebar" aria-label="Provider 列表">
+                  <button class="provider-row active" data-provider="openai"><span class="provider-logo">O</span><span><strong>OpenAI API</strong><small>组织费用</small></span><span>●</span></button>
+                  <button class="provider-row" data-provider="deepseek"><span class="provider-logo">D</span><span><strong>DeepSeek</strong><small>余额 + TOKEN</small></span><span>●</span></button>
+                  <button class="provider-row" data-provider="openrouter"><span class="provider-logo">R</span><span><strong>OpenRouter</strong><small>CREDITS</small></span><span>●</span></button>
+                  <button class="provider-row" data-provider="gemini"><span class="provider-logo">G</span><span><strong>Gemini</strong><small>本地聚合</small></span><span>●</span></button>
+                </aside>
+                <section class="token-detail">
+                  <div class="token-metrics">
+                    <div class="metric-box"><div class="metric-label">费用</div><div class="metric-value" id="metric-cost" data-sensitive>$28.46</div><div class="metric-delta" id="metric-cost-delta">较上周 +12.4%</div></div>
+                    <div class="metric-box"><div class="metric-label">输入 Token</div><div class="metric-value" id="metric-input">8.24M</div><div class="metric-delta">包含缓存输入</div></div>
+                    <div class="metric-box"><div class="metric-label">输出 Token</div><div class="metric-value" id="metric-output">1.82M</div><div class="metric-delta">输出占比 18.1%</div></div>
+                  </div>
+                  <div class="chart-box" aria-label="Token 使用柱状图">
+                    <div class="chart-legend"><span><i class="legend-key"></i>输入</span><span><i class="legend-key output"></i>输出</span></div>
+                    <div class="chart-grid"></div>
+                    <div class="chart-bars" id="chart-bars"></div>
+                  </div>
+                  <div class="token-footer">
+                    <div class="token-foot-item">最常用模型<strong id="foot-model">gpt-5.6</strong></div>
+                    <div class="token-foot-item">缓存命中率<strong id="foot-cache">62.8%</strong></div>
+                    <div class="token-foot-item">月度预算<strong id="foot-budget">$28.46 / $50</strong></div>
+                  </div>
+                </section>
+              </div>
+            </div>
+          </article>
+        </div>
+
+        <div class="page" id="page-settings" aria-label="设置页面">
+          <article class="window" id="settings-main">
+            <div class="window-titlebar">
+              <button class="close-box" aria-label="关闭设置窗口"></button>
+              <div class="window-title">控制面板</div>
+              <button class="zoom-box" aria-label="缩放设置窗口"></button>
+            </div>
+            <div class="window-content">
+              <div class="settings-tabs" role="tablist">
+                <button class="settings-tab active" data-settings-tab="providers" role="tab">Providers</button>
+                <button class="settings-tab" data-settings-tab="weather" role="tab">时间与天气</button>
+                <button class="settings-tab" data-settings-tab="display" role="tab">显示</button>
+              </div>
+
+              <div class="settings-pane active" id="settings-providers" role="tabpanel">
+                <div class="provider-config-list">
+                  <div class="provider-config-row"><span class="provider-logo">C</span><span><strong>Codex Pro</strong><small>APP SERVER · 套餐窗口</small></span><span class="connection-state">● 已连接</span><button class="classic-button" data-dialog="provider-dialog">编辑…</button></div>
+                  <div class="provider-config-row"><span class="provider-logo">O</span><span><strong>OpenAI API</strong><small>USAGE + COST API</small></span><span class="connection-state">● 已连接</span><button class="classic-button" data-dialog="provider-dialog">编辑…</button></div>
+                  <div class="provider-config-row"><span class="provider-logo">D</span><span><strong>DeepSeek</strong><small>BALANCE + LOCAL USAGE</small></span><span class="connection-state">● 已连接</span><button class="classic-button" data-dialog="provider-dialog">编辑…</button></div>
+                  <div class="provider-config-row"><span class="provider-logo">R</span><span><strong>OpenRouter</strong><small>CREDITS API</small></span><span class="connection-state">○ 未启用</span><button class="classic-button" data-dialog="provider-dialog">编辑…</button></div>
+                  <div class="provider-config-row"><span class="provider-logo">＋</span><span><strong>添加 Provider</strong><small>兼容 OPENAI 或自定义 CONNECTOR</small></span><span></span><button class="classic-button primary" data-dialog="provider-dialog">添加…</button></div>
+                </div>
+                <div class="info-box" style="margin-top:14px">密钥仅保存在 macOS Keychain。原型不会发起真实网络请求，也不会记录输入内容。</div>
+              </div>
+
+              <div class="settings-pane" id="settings-weather" role="tabpanel">
+                <div class="form-grid">
+                  <label for="location">城市</label><input class="classic-input" id="location" value="上海">
+                  <label for="timezone">时区</label><select class="classic-select" id="timezone"><option>Asia/Shanghai</option><option>Asia/Tokyo</option><option>America/Los_Angeles</option></select>
+                  <label for="weather-source">天气服务</label><select class="classic-select" id="weather-source"><option>Open-Meteo</option><option>WeatherKit</option><option>关闭天气</option></select>
+                  <label>刷新间隔</label><select class="classic-select"><option>每 15 分钟</option><option>每 30 分钟</option><option>每小时</option></select>
+                  <label></label><div class="checkbox-line"><input type="checkbox" id="hourly-toggle" checked><label for="hourly-toggle" style="text-align:left">显示逐小时天气</label></div>
+                </div>
+              </div>
+
+              <div class="settings-pane" id="settings-display" role="tabpanel">
+                <div class="form-grid">
+                  <label>逻辑分辨率</label><input class="classic-input" value="1280 × 720" disabled>
+                  <label for="screen-target">目标屏幕</label><select class="classic-select" id="screen-target"><option>自动选择 1280×720 副屏</option><option>显示器 2</option><option>主显示器</option></select>
+                  <label></label><div class="checkbox-line"><input type="checkbox" id="launch-toggle" checked><label for="launch-toggle" style="text-align:left">连接副屏后自动打开</label></div>
+                  <label></label><div class="checkbox-line"><input type="checkbox" id="pixel-toggle" checked><label for="pixel-toggle" style="text-align:left">启用像素化字体与 1-bit 图案</label></div>
+                  <label></label><div class="checkbox-line"><input type="checkbox" id="burn-toggle" checked><label for="burn-toggle" style="text-align:left">启用防烧屏像素漂移</label></div>
+                  <label>夜间亮度</label><select class="classic-select"><option>40%</option><option>25%</option><option>不调整</option></select>
+                </div>
+              </div>
+
+              <div class="settings-actions"><button class="classic-button" data-page="overview">取消</button><button class="classic-button primary" data-action="save-settings">存储</button></div>
+            </div>
+          </article>
+        </div>
+
+      </section>
+
+      <div class="dialog-scrim" id="provider-dialog" hidden>
+        <section class="dialog" role="dialog" aria-modal="true" aria-labelledby="provider-dialog-title" style="width:560px">
+          <h2 id="provider-dialog-title">Provider 配置</h2>
+          <div class="form-grid" style="grid-template-columns:120px 1fr;margin-top:18px">
+            <label for="provider-name">名称</label><input class="classic-input" id="provider-name" value="OpenAI API">
+            <label for="provider-mode">计费形式</label><select class="classic-select" id="provider-mode"><option>按 Token 计费</option><option>套餐额度窗口</option><option>余额 / Credits</option><option>本地估算</option></select>
+            <label for="provider-key">API Key</label><input class="classic-input" id="provider-key" value="••••••••••••••••" type="password">
+            <label for="provider-budget">月度预算</label><input class="classic-input" id="provider-budget" value="50 USD">
+          </div>
+          <div class="dialog-actions"><button class="classic-button" data-close-dialog>取消</button><button class="classic-button primary" data-action="save-provider">连接并存储</button></div>
+        </section>
+      </div>
+
+      <div class="toast" id="toast" role="status" aria-live="polite">设置已存储</div>
+    </main>
+  </div>
+
+  <script>
+    (() => {
+      const screen = document.getElementById('mac-screen');
+      const toast = document.getElementById('toast');
+      const pages = [...document.querySelectorAll('.page')];
+      const providerRows = [...document.querySelectorAll('[data-provider]')];
+      let toastTimer;
+
+      const providerData = {
+        openai: { name: 'OpenAI API', cost: '$28.46', delta: '较上周 +12.4%', input: '8.24M', output: '1.82M', model: 'gpt-5.6', cache: '62.8%', budget: '$28.46 / $50', seed: 1 },
+        deepseek: { name: 'DeepSeek', cost: '¥13.60', delta: '较上周 -8.2%', input: '2.08M', output: '438K', model: 'deepseek-chat', cache: '74.1%', budget: '¥13.60 / ¥100', seed: 2 },
+        openrouter: { name: 'OpenRouter', cost: '$6.74', delta: '较上周 +2.1%', input: '1.38M', output: '291K', model: 'auto/router', cache: '18.4%', budget: '$6.74 / $25', seed: 3 },
+        gemini: { name: 'Gemini', cost: '$2.19', delta: '本地聚合数据', input: '3.61M', output: '709K', model: 'gemini-flash', cache: '—', budget: '$2.19 / $20', seed: 4 }
+      };
+
+      const chartSets = {
+        day: [32, 48, 23, 67, 44, 82, 55, 71, 38, 61, 76, 49],
+        week: [46, 63, 51, 88, 74, 96, 58],
+        month: [38, 52, 69, 47, 83, 61, 91, 74, 56, 86]
+      };
+
+      function fitScreen() {
+        const scale = Math.min(window.innerWidth / 1280, window.innerHeight / 720);
+        screen.style.transform = `scale(${scale})`;
+      }
+
+      function nowParts() {
+        return new Intl.DateTimeFormat('zh-CN', {
+          timeZone: 'Asia/Shanghai', year: 'numeric', month: 'long', day: 'numeric',
+          weekday: 'long', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        }).formatToParts(new Date()).reduce((acc, item) => (acc[item.type] = item.value, acc), {});
+      }
+
+      function updateClock() {
+        const p = nowParts();
+        document.getElementById('clock-hours').textContent = p.hour;
+        document.getElementById('clock-minutes').textContent = p.minute;
+        document.getElementById('clock-seconds').textContent = `:${p.second}`;
+        document.getElementById('clock-date').textContent = `${p.year}年${p.month}${p.day}日 · ${p.weekday}`;
+        document.getElementById('clock-colon').style.visibility = Number(p.second) % 2 ? 'hidden' : 'visible';
+      }
+
+      function showToast(message) {
+        clearTimeout(toastTimer);
+        toast.textContent = message;
+        toast.classList.add('show');
+        toastTimer = setTimeout(() => toast.classList.remove('show'), 1900);
+      }
+
+      function showPage(name) {
+        pages.forEach(page => page.classList.toggle('active', page.id === `page-${name}`));
+        document.querySelectorAll('.app-nav-button').forEach(button => button.classList.toggle('active', button.dataset.page === name));
+      }
+
+      function showDialog(id) {
+        const dialog = document.getElementById(id);
+        if (!dialog) return;
+        dialog.hidden = false;
+        dialog.querySelector('button, input, select')?.focus();
+      }
+
+      function closeDialog(dialog) {
+        dialog.hidden = true;
+      }
+
+      function refreshData() {
+        const led = document.getElementById('status-led');
+        const status = document.getElementById('sync-status');
+        led.classList.add('syncing');
+        status.textContent = '正在连接 Providers…';
+        setTimeout(() => {
+          led.classList.remove('syncing');
+          status.textContent = '所有 Provider 已同步';
+          const time = new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit', hour12: false });
+          document.getElementById('last-sync').textContent = `最后更新 ${time}`;
+          showToast('同步完成 · 4 个 Provider 已更新');
+        }, 850);
+      }
+
+      function renderChart(range = 'week', seed = 1) {
+        const holder = document.getElementById('chart-bars');
+        if (!holder) return;
+        const values = chartSets[range];
+        const labels = range === 'week' ? ['一','二','三','四','五','六','日'] : range === 'day' ? ['00','02','04','06','08','10','12','14','16','18','20','22'] : values.map((_, i) => `${i * 3 + 1}`);
+        holder.innerHTML = values.map((value, i) => {
+          const adjusted = Math.max(13, Math.min(100, value + ((i + seed) % 3 - 1) * seed * 4));
+          const output = Math.max(7, Math.round(adjusted * (.18 + ((i + seed) % 3) * .04)));
+          return `<div class="chart-column"><div class="chart-bar" style="height:${adjusted - output}%"></div><div class="chart-bar output" style="height:${output}%"></div><span class="chart-day">${labels[i]}</span></div>`;
+        }).join('');
+        document.getElementById('token-period-label').textContent = range === 'day' ? '今日 24 小时' : range === 'month' ? '最近 30 天' : '最近 7 天';
+      }
+
+      function chooseProvider(key) {
+        const data = providerData[key];
+        if (!data) return;
+        providerRows.forEach(row => row.classList.toggle('active', row.dataset.provider === key));
+        document.getElementById('token-provider-title').textContent = data.name;
+        document.getElementById('metric-cost').textContent = data.cost;
+        document.getElementById('metric-cost-delta').textContent = data.delta;
+        document.getElementById('metric-input').textContent = data.input;
+        document.getElementById('metric-output').textContent = data.output;
+        document.getElementById('foot-model').textContent = data.model;
+        document.getElementById('foot-cache').textContent = data.cache;
+        document.getElementById('foot-budget').textContent = data.budget;
+        renderChart('week', data.seed);
+      }
+
+      document.addEventListener('click', event => {
+        const pageButton = event.target.closest('[data-page]');
+        if (pageButton && !pageButton.dataset.provider) { showPage(pageButton.dataset.page); return; }
+
+        const dialogButton = event.target.closest('[data-dialog]');
+        if (dialogButton) { showDialog(dialogButton.dataset.dialog); return; }
+
+        const closeButton = event.target.closest('[data-close-dialog]');
+        if (closeButton) { closeDialog(closeButton.closest('.dialog-scrim')); return; }
+
+        const provider = event.target.closest('[data-provider]');
+        if (provider) { chooseProvider(provider.dataset.provider); return; }
+
+        const range = event.target.closest('[data-range]');
+        if (range) { renderChart(range.dataset.range, 1); showPage('tokens'); return; }
+
+        const action = event.target.closest('[data-action]')?.dataset.action;
+        if (action === 'refresh') refreshData();
+        if (action === 'save-settings') { showToast('设置已存储'); setTimeout(() => showPage('overview'), 350); }
+        if (action === 'save-provider') { closeDialog(document.getElementById('provider-dialog')); showToast('Provider 已连接并存储'); }
+      });
+
+      document.querySelectorAll('.settings-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+          document.querySelectorAll('.settings-tab').forEach(el => el.classList.toggle('active', el === tab));
+          document.querySelectorAll('.settings-pane').forEach(pane => pane.classList.toggle('active', pane.id === `settings-${tab.dataset.settingsTab}`));
+        });
+      });
+
+      document.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+          document.querySelectorAll('.dialog-scrim:not([hidden])').forEach(closeDialog);
+        }
+        if (['1','2','3'].includes(event.key) && !event.target.matches('input,select')) {
+          showPage(['overview','plans','tokens'][Number(event.key) - 1]);
+        }
+        if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'r') { event.preventDefault(); refreshData(); }
+      });
+
+      window.addEventListener('resize', fitScreen);
+      document.addEventListener('fullscreenchange', fitScreen);
+      fitScreen();
+      updateClock();
+      setInterval(updateClock, 1000);
+      renderChart('week', 1);
+    })();
+  </script>
+</body>
+</html>
