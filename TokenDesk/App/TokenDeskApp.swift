@@ -1,12 +1,23 @@
 import SwiftUI
+import TokenDeskPlatform
 
 @main
 struct TokenDeskApp: App {
+    @StateObject private var displayController = DisplayController()
+
     var body: some Scene {
         WindowGroup {
-            ContentView()
-                .frame(minWidth: 1280, minHeight: 720)
+            DisplayCanvas {
+                ContentView()
+            }
+            .background(DisplayWindowAttachment(controller: displayController))
+            .onAppear {
+                displayController.start()
+            }
+            .onDisappear {
+                displayController.stop()
+            }
         }
-        .windowResizability(.contentSize)
+        .defaultSize(width: 1_280, height: 720)
     }
 }
