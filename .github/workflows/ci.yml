@@ -45,6 +45,12 @@ jobs:
         run: >-
           swift test --package-path Packages/TokenDeskKit
           -Xswiftc -warnings-as-errors -Xswiftc -strict-concurrency=complete
+      - name: Run app unit tests
+        run: >-
+          xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
+          -configuration Debug -destination 'platform=macOS'
+          -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO
+          -only-testing:TokenDeskTests test
       - name: Build Debug app
         run: >-
           xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk

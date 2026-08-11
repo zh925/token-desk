@@ -19,6 +19,9 @@ swift format lint --strict --recursive TokenDesk Packages TokenDeskTests TokenDe
 swift test --package-path Packages/TokenDeskKit \
   -Xswiftc -warnings-as-errors -Xswiftc -strict-concurrency=complete
 xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
+  -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO \
+  -only-testing:TokenDeskTests test
+xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
   -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
   -configuration Release -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build

@@ -1,5 +1,6 @@
 import XCTest
 
+@MainActor
 final class TokenDeskUITests: XCTestCase {
     func testLaunchShowsProductName() {
         let application = XCUIApplication()
