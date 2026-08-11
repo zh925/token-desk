@@ -25,6 +25,13 @@ public struct AppHeader: View {
 
             TokenDeskStatusBadge(.connected)
 
+            Text("最后更新 10:09")
+                .font(TokenDeskTextStyle.auxiliary.font)
+
+            Button("同步") {}
+                .buttonStyle(TokenDeskButtonStyle())
+                .accessibilityIdentifier("sync-button")
+
             Button("设置") {
                 router.select(.settings)
             }
