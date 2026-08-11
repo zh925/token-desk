@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Visible data and connection states supported by the shared badge component.
-public enum TokenDeskStatus: CaseIterable, Sendable {
+public enum TokenDeskStatus: CaseIterable, Equatable, Sendable {
     case connected
     case syncing
     case stale
