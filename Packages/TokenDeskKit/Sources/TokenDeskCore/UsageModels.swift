@@ -2,6 +2,8 @@ import Foundation
 
 /// Supported calendar bucket boundaries for token and cost aggregation.
 public enum UsageGranularity: String, Codable, CaseIterable, Sendable {
+    case minute
+    case hour
     case day
     case week
     case month
@@ -38,6 +40,10 @@ public struct UsagePeriod: Codable, Equatable, Hashable, Sendable {
 
         let component: Calendar.Component
         switch granularity {
+        case .minute:
+            component = .minute
+        case .hour:
+            component = .hour
         case .day:
             component = .day
         case .week:

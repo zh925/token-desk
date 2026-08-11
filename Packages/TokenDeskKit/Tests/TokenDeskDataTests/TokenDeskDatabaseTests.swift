@@ -19,6 +19,7 @@ func emptyDatabaseMigratesToLatestSchema() throws {
     #expect(
         migrations == [
             TokenDeskDatabaseMigrator.bootstrapIdentifier,
+            TokenDeskDatabaseMigrator.initialSchemaIdentifier,
             TokenDeskDatabaseMigrator.latestIdentifier,
         ]
     )
@@ -38,6 +39,43 @@ func previousVersionMigratesForwardAndPreservesLedger() throws {
     try TokenDeskDatabaseMigrator.migrate(database)
     try TokenDeskDatabaseMigrator.migrate(database)
     try assertLatestSchema(in: database)
+}
+
+@Test
+func initialSchemaMigratesPricingProvenanceWithoutLosingRules() throws {
+    let database = try DatabaseQueue(configuration: TokenDeskDatabase.configuration)
+    try TokenDeskDatabaseMigrator.migrate(
+        database,
+        upTo: TokenDeskDatabaseMigrator.initialSchemaIdentifier
+    )
+    try database.write { database in
+        try database.execute(
+            sql: """
+                INSERT INTO pricing_rules (
+                    id, provider_type, model_match, currency, region, version,
+                    effective_from, input_per_million_decimal, output_per_million_decimal,
+                    cache_read_per_million_decimal, cache_write_per_million_decimal,
+                    source, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            arguments: [
+                "legacy-v1", "example", "model", "USD", "global", 1,
+                "2026-08-12T00:00:00Z", "1", "2", "0.5", "0.75",
+                "official_pricing", "2026-08-12T00:00:00Z",
+            ]
+        )
+    }
+
+    try TokenDeskDatabaseMigrator.migrate(database)
+
+    let provenance = try database.read { database in
+        try String.fetchOne(
+            database,
+            sql: "SELECT source_kind FROM pricing_rules WHERE id = ?",
+            arguments: ["legacy-v1"]
+        )
+    }
+    #expect(provenance == "official")
 }
 
 @Test
