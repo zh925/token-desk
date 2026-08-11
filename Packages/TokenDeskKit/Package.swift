@@ -36,7 +36,7 @@ let package = Package(
         .testTarget(name: "TokenDeskDataTests", dependencies: ["TokenDeskData"]),
         .testTarget(
             name: "TokenDeskConnectorsTests",
-            dependencies: ["TokenDeskConnectors"]
+            dependencies: ["TokenDeskConnectors", "TokenDeskCore"]
         ),
         .testTarget(name: "TokenDeskPlatformTests", dependencies: ["TokenDeskPlatform"]),
         .testTarget(name: "TokenDeskDesignTests", dependencies: ["TokenDeskDesign"]),
