@@ -26,6 +26,7 @@ xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
 xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
   -configuration Release -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 ./scripts/secret-scan.sh
+./scripts/fixture-lint.py
 ```
 
 `Package.resolved` pins the GRDB revision selected from the approved `7.x` range. Dependency

@@ -1,0 +1,125 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {
+      "path": "v1/codex/plan.success.json",
+      "capability": "plan",
+      "outcome": "success",
+      "scenario": "primary and secondary quota windows",
+      "source": "https://developers.openai.com/codex/app-server",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/openai/usage.success.json",
+      "capability": "usage",
+      "outcome": "success",
+      "scenario": "organization usage bucket without remote identifiers",
+      "source": "https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/anthropic/cost.success.json",
+      "capability": "cost",
+      "outcome": "success",
+      "scenario": "daily official cost in USD",
+      "source": "https://platform.claude.com/docs/en/manage-claude/usage-cost-api",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/deepseek/balance.success.json",
+      "capability": "balance",
+      "outcome": "success",
+      "scenario": "available CNY balance with string precision",
+      "source": "https://api-docs.deepseek.com/zh-cn/api/get-user-balance",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/openrouter/credits.success.json",
+      "capability": "credits",
+      "outcome": "success",
+      "scenario": "total and consumed USD credits",
+      "source": "https://openrouter.ai/docs/api/api-reference/credits/get-remaining-credits",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/errors/authentication.error.json",
+      "capability": "errors",
+      "outcome": "error",
+      "scenario": "authentication",
+      "source": "https://developers.openai.com/api/docs/guides/error-codes",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/errors/permission.error.json",
+      "capability": "errors",
+      "outcome": "error",
+      "scenario": "permission",
+      "source": "https://openrouter.ai/docs/api/reference/errors-and-debugging",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/errors/rate-limit.error.json",
+      "capability": "errors",
+      "outcome": "error",
+      "scenario": "rate-limit",
+      "source": "https://platform.kimi.ai/docs/pricing/limits",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/errors/decoding.error.json",
+      "capability": "errors",
+      "outcome": "error",
+      "scenario": "decoding",
+      "source": "https://api-docs.deepseek.com/zh-cn/api/get-user-balance",
+      "sourceVersion": "documentation reviewed 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/errors/unsupported.error.json",
+      "capability": "errors",
+      "outcome": "error",
+      "scenario": "unsupported",
+      "source": "https://github.com/zh925/token-desk/blob/936363a/docs/TECH_STACK.md",
+      "sourceVersion": "repository baseline 2026-08-11",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    }
+  ]
+}
