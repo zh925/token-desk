@@ -8,7 +8,7 @@ final class TokenDeskTests: XCTestCase {
         XCTAssertNotNil(ContentView())
     }
 
-    func testDesignCatalogRendersAt1280By720() throws {
+    func testAppShellRendersAt1280By720() throws {
         let renderer = ImageRenderer(content: ContentView())
         renderer.scale = 1
 
@@ -17,7 +17,7 @@ final class TokenDeskTests: XCTestCase {
         XCTAssertEqual(image.size.height, 720, accuracy: 1)
 
         let attachment = XCTAttachment(image: image)
-        attachment.name = "TokenDeskDesign-1280x720"
+        attachment.name = "TokenDeskShell-1280x720"
         attachment.lifetime = .keepAlways
         add(attachment)
     }
