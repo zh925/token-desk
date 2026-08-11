@@ -25,7 +25,9 @@ public enum TokenDeskDatabaseMigrator {
     /// The ledger-only predecessor used to verify upgrades into schema v1.
     public static let bootstrapIdentifier = "v000_migrationLedger"
     /// The first application schema described by PRD section 20.
-    public static let latestIdentifier = "v001_initialSchema"
+    public static let initialSchemaIdentifier = "v001_initialSchema"
+    /// Adds complete provenance to versioned pricing rules.
+    public static let latestIdentifier = "v002_pricingRuleProvenance"
 
     /// Runs every pending migration in registration order.
     public static func migrate(_ writer: any DatabaseWriter) throws {
@@ -52,8 +54,18 @@ public enum TokenDeskDatabaseMigrator {
             )
             try recordMigration(bootstrapIdentifier, in: database)
         }
-        migrator.registerMigration(latestIdentifier) { database in
+        migrator.registerMigration(initialSchemaIdentifier) { database in
             try createInitialSchema(in: database)
+            try recordMigration(initialSchemaIdentifier, in: database)
+        }
+        migrator.registerMigration(latestIdentifier) { database in
+            try database.execute(
+                sql: """
+                    ALTER TABLE pricing_rules
+                    ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'official'
+                    CHECK (source_kind IN ('official', 'locallyAggregated', 'estimated', 'demonstration'))
+                    """
+            )
             try recordMigration(latestIdentifier, in: database)
         }
         return migrator
