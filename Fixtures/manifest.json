@@ -26,6 +26,30 @@
       "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
     },
     {
+      "path": "v1/openai/cost.success.json",
+      "capability": "cost",
+      "outcome": "success",
+      "scenario": "organization daily official cost grouped by redacted project",
+      "source": "https://developers.openai.com/api/reference/resources/admin/subresources/organization/subresources/usage",
+      "sourceVersion": "documentation reviewed 2026-08-12",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/open-meteo/weather.success.json",
+      "capability": "weather",
+      "outcome": "success",
+      "scenario": "current conditions and four future hourly forecast points",
+      "source": "https://open-meteo.com/en/docs",
+      "sourceVersion": "documentation reviewed 2026-08-12",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
       "path": "v1/anthropic/cost.success.json",
       "capability": "cost",
       "outcome": "success",
