@@ -11,6 +11,7 @@ public enum DomainModelError: Error, Equatable, Sendable {
     case invalidInterval
     case invalidTimeZone(String)
     case invalidConfidence(Decimal)
+    case invalidCoordinate
 }
 
 /// A stable local identifier for a configured Provider instance.

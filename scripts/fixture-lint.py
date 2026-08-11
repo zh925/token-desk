@@ -8,7 +8,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 FIXTURES = ROOT / "Fixtures"
 MANIFEST = FIXTURES / "manifest.json"
-CAPABILITIES = {"plan", "usage", "cost", "balance", "credits", "errors"}
+CAPABILITIES = {"plan", "usage", "cost", "balance", "credits", "weather", "errors"}
 DATA_CAPABILITIES = CAPABILITIES - {"errors"}
 ERROR_SCENARIOS = {"authentication", "permission", "rate-limit", "decoding", "unsupported"}
 PROVENANCE = {"documentation-derived-synthetic", "manually-redacted-recording"}
