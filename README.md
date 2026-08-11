@@ -6,9 +6,14 @@ Token Desk 是一款面向 macOS 5 寸副屏的常驻 AI 用量看板，固定�
 
 ```text
 token-desk/
+├── TokenDesk.xcodeproj/
+├── TokenDesk/
+├── Packages/TokenDeskKit/
+├── Config/
 ├── README.md
 ├── docs/
-│   └── PRD.md
+│   ├── PRD.md
+│   └── BUILDING.md
 └── prototype/
     └── index.html
 ```
@@ -42,3 +47,4 @@ token-desk/
 - [技术栈与架构决策](docs/TECH_STACK.md)
 - [编码规范](docs/CODING_STANDARDS.md)
 - [MVP 开发计划与任务排布](docs/DEVELOPMENT_PLAN.md)
+- [构建与安全基线](docs/BUILDING.md)

@@ -1,0 +1,59 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  secret-scan:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Scan tracked files
+        run: ./scripts/secret-scan.sh
+
+  quality:
+    name: Format, test, and build
+    runs-on: macos-26
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+      - name: Verify pinned Xcode
+        run: xcodebuild -version | grep -F "Xcode $(cat .xcode-version)"
+      - name: Resolve locked dependencies
+        run: |
+          swift package resolve --package-path Packages/TokenDeskKit
+          git diff --exit-code -- Packages/TokenDeskKit/Package.resolved
+      - name: Lint Swift formatting
+        run: >-
+          swift format lint --strict --recursive
+          TokenDesk Packages TokenDeskTests TokenDeskUITests
+      - name: Run local package tests
+        run: >-
+          swift test --package-path Packages/TokenDeskKit
+          -Xswiftc -warnings-as-errors -Xswiftc -strict-concurrency=complete
+      - name: Build Debug app
+        run: >-
+          xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
+          -configuration Debug -destination 'platform=macOS'
+          -disableAutomaticPackageResolution
+          CODE_SIGNING_ALLOWED=NO ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO build
+      - name: Build Release app
+        run: >-
+          xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
+          -configuration Release -destination 'platform=macOS'
+          -disableAutomaticPackageResolution
+          CODE_SIGNING_ALLOWED=NO ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO build
