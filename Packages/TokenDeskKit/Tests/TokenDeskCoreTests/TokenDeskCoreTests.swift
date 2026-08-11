@@ -17,6 +17,41 @@ func publicDomainModelsAreSendable() {
     requireSendable(TokenUsageBucket.self)
     requireSendable(CostSnapshot.self)
     requireSendable(BalanceSnapshot.self)
+    requireSendable(Credential.self)
+    requireSendable(CredentialConfigurationStatus.self)
+}
+
+@Test
+func credentialMaterialIsNotSerializableAndRedactsDescriptions() throws {
+    let credential = try Credential(utf8Value: "fixture-redacted-credential")
+
+    #expect(String(describing: credential) == "<redacted credential>")
+    #expect(String(reflecting: credential) == "<redacted credential>")
+    #expect(credential.customMirror.children.first?.value as? String == "<redacted credential>")
+    #expect(!(Credential.self is any Encodable.Type))
+}
+
+@Test
+func accountConfigurationSerializesOnlyTheOpaqueCredentialReference() throws {
+    let account = try AccountReference(
+        id: AccountID(rawValue: "local-account"),
+        providerID: ProviderID(rawValue: "openai-primary"),
+        displayName: "Primary",
+        scope: .personal,
+        credentialReference: CredentialReference(rawValue: "local-account")
+    )
+
+    let json = try #require(String(data: JSONEncoder().encode(account), encoding: .utf8))
+
+    #expect(json.contains("local-account"))
+    #expect(!json.contains("fixture-redacted-credential"))
+}
+
+@Test
+func emptyCredentialMaterialIsRejected() {
+    #expect(throws: CredentialStoreError.emptyCredential) {
+        try Credential(data: Data())
+    }
 }
 
 @Test
