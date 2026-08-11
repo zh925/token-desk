@@ -2,26 +2,48 @@ import XCTest
 
 @MainActor
 final class TokenDeskUITests: XCTestCase {
-    func testDesignCatalogFitsBaselineAndUsesAccessibleTargets() {
+    func testAppShellFitsBaselineAndUsesSingleSettingsEntry() {
         let application = XCUIApplication()
         application.launch()
 
         XCTAssertTrue(application.staticTexts["Token Desk"].waitForExistence(timeout: 2))
-        XCTAssertTrue(application.staticTexts["Design system ready"].exists)
+        XCTAssertTrue(application.staticTexts["总览页面"].exists)
 
-        let button = application.buttons["standard-button"]
-        XCTAssertTrue(button.exists)
-        XCTAssertGreaterThanOrEqual(button.frame.width, 40)
-        XCTAssertGreaterThanOrEqual(button.frame.height, 40)
+        let overviewButton = application.buttons["route-overview"]
+        XCTAssertTrue(overviewButton.exists)
+        XCTAssertGreaterThanOrEqual(overviewButton.frame.width, 40)
+        XCTAssertGreaterThanOrEqual(overviewButton.frame.height, 40)
 
-        let canvas = application.groups["design-system-canvas"]
+        let settingsButtons = application.buttons.matching(identifier: "settings-button")
+        XCTAssertEqual(settingsButtons.count, 1)
+
+        let canvas = application.groups["app-shell-canvas"]
         XCTAssertTrue(canvas.exists)
         XCTAssertEqual(canvas.frame.width, 1_280, accuracy: 1)
         XCTAssertEqual(canvas.frame.height, 720, accuracy: 1)
 
         let attachment = XCTAttachment(screenshot: application.screenshot())
-        attachment.name = "TokenDeskDesign-1280x720"
+        attachment.name = "TokenDeskShell-1280x720"
         attachment.lifetime = .keepAlways
         add(attachment)
+    }
+
+    func testKeyboardNavigationAndSettingsRoute() {
+        let application = XCUIApplication()
+        application.launch()
+
+        XCTAssertTrue(application.staticTexts["总览页面"].waitForExistence(timeout: 2))
+
+        application.typeKey("2", modifierFlags: [])
+        XCTAssertTrue(application.staticTexts["套餐页面"].waitForExistence(timeout: 1))
+
+        application.typeKey("3", modifierFlags: [])
+        XCTAssertTrue(application.staticTexts["Token页面"].waitForExistence(timeout: 1))
+
+        application.typeKey("1", modifierFlags: [])
+        XCTAssertTrue(application.staticTexts["总览页面"].waitForExistence(timeout: 1))
+
+        application.buttons["settings-button"].click()
+        XCTAssertTrue(application.staticTexts["设置页面"].waitForExistence(timeout: 1))
     }
 }
