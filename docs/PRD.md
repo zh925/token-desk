@@ -168,7 +168,7 @@ Mac 从睡眠中恢复或副屏重新插入后，应用重新识别目标屏幕�
 - 套餐额度：名称、已用百分比、窗口长度、重置时间、数据来源。
 - Token 计费：输入、输出、缓存、费用、余额和预算。
 - OpenAI API Connector。
-- Codex 套餐 Connector。
+- Codex 套餐明确降级状态；P0 不接入真实额度，Fixture 仅用于演示且永久标识为演示数据。
 - Anthropic API 组织 Connector。
 - DeepSeek Connector。
 - OpenRouter Connector。
@@ -189,6 +189,7 @@ Mac 从睡眠中恢复或副屏重新插入后，应用重新识别目标屏幕�
 
 ### 8.2 P1
 
+- Codex 套餐 Connector（仅在 GATE-02 重开条件全部通过后恢复）。
 - Claude 个人套餐本地估算。
 - 自定义 OpenAI-compatible Provider。
 - 通义千问/阿里云百炼 Connector。
@@ -433,7 +434,7 @@ local_estimate  本地采集和估算
 
 | Provider | 账户范围 | 数据类型 | 推荐数据源 | MVP 展示 |
 |---|---|---|---|---|
-| Codex / ChatGPT | 个人 + 组织 | quota_window | Codex App Server | 套餐、额度百分比、窗口、重置时间、Token 摘要 |
+| Codex / ChatGPT | 个人 + 组织 | quota_window | Codex App Server（GATE-02 重开后） | P0 显示明确不支持状态；Fixture 仅演示，不作为真实数据 |
 | OpenAI API | 个人 + 组织 | metered_token | Organization Usage / Costs API；单次响应 usage | 输入、输出、缓存、项目费用 |
 | Anthropic API | 组织 | metered_token | Usage & Cost Admin API | 组织 Token、工作空间和费用 |
 | DeepSeek | 个人 + 组织 | credit_balance + metered_token | Balance API + 单次响应 usage | 余额、Token、本地聚合费用 |
@@ -903,7 +904,7 @@ App
 
 ### M2：用量 MVP（2–3 周）
 
-- Codex 套餐 Connector。
+- Codex 套餐明确降级状态；真实 Connector 后置到 GATE-02 重开后。
 - OpenAI Usage/Costs。
 - Anthropic、DeepSeek 与 OpenRouter。
 - GLM、Kimi 与 MiniMax。

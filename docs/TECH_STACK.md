@@ -229,7 +229,7 @@ MVP Connector 分三类：
 | 编号 | 验证 | 通过条件 | 失败处理 |
 |---|---|---|---|
 | GATE-01 | Wokyis M5 真机识别与重连 | 直连/扩展坞、睡眠、拔插均在 5 秒内恢复到正确屏 | 保留手选屏并调整匹配策略 |
-| GATE-02 | Codex App Server + App Sandbox | 官方、只读、无需私有容器/网页抓取，审核模式可验证 | 将真实接入移出 P0 或改为明确本地估算 |
+| GATE-02 | Codex App Server + App Sandbox | **未通过（2026-08-11）**：只读字段可用，但 app-server 仍为实验性且不支持生产，Release 沙箱、凭据存储和审核包未验证；见 `docs/spikes/GATE-02_CODEX_APP_SERVER_SANDBOX.md` | 将真实接入移出 P0；仅保留 `.unsupported` 与明确 Fixture 演示，不以估算冒充官方额度 |
 | GATE-03 | 九个 Provider 能力矩阵 | 每项确认凭据、账户层级、历史/余额/费用接口与限流 | 按 capability 降级，不伪造统一能力 |
 | GATE-04 | GRDB + 沙箱数据库 | 迁移、WAL、并发读写、容器路径和导出均通过 | 在 M1 前调整封装，不在业务层散写 SQL |
 | GATE-05 | 1280×720 真机可读性 | 正文 ≥14、辅助 ≥11、核心数字 3 秒可读，无裁切 | 调整 Design Token 和原型差异清单 |
@@ -245,7 +245,7 @@ MVP Connector 分三类：
 | ADR-005 | Connector capability + 统一领域对象 | Accepted |
 | ADR-006 | Provider 同步 actor 隔离，失败互不影响 | Accepted |
 | ADR-007 | 固定 1280×720 设计画布，仅整体缩放 | Accepted，待 GATE-01/05 验证 |
-| ADR-008 | Codex 数据只走官方且沙箱合规的能力 | Accepted，接入范围待 GATE-02 |
+| ADR-008 | Codex 数据只走官方且沙箱合规的能力 | Accepted；GATE-02 未通过，真实 Connector 移出 P0，满足 spike 重开条件后再评估 |
 
 ## 12. 参考
 

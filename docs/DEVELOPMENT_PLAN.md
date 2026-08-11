@@ -92,7 +92,7 @@
 | TD-045 | GLM Connector | TD-002/011/014/015/016 | 2 | B | 按实际 capability 展示套餐/Token/估算 |
 | TD-046 | Kimi/Moonshot Balance + usage | TD-002/011/014/015/016 | 2 | B | 余额、Token、本地历史，账户范围正确 |
 | TD-047 | MiniMax Token Plan + usage | TD-002/011/014/015/016 | 2.5 | B | Plan/余额/按量能力不混算 |
-| TD-048 | Codex 套餐 Connector 或已批准降级实现 | TD-003/011/014/015 | 3 | B | 官方窗口/重置，或产品批准的明确降级状态 |
+| TD-048 | Codex 套餐 P0 降级实现（真实 Connector 后置） | TD-003/011/014/015 | 3 | B | capability 返回 `.unsupported`；Fixture 永久标识演示；不展示伪造额度/重置 |
 | TD-049 | Connector 全量一致性与部分失败测试 | TD-040..048 | 2 | B+QA | 九类状态可在 UI 切换；一个失败不影响其他 |
 
 ### EPIC 5：聚合、设置、导出与告警
@@ -143,7 +143,7 @@ TD-002 -> TD-010 -> TD-011 -> TD-015 -> TD-040..048 -> TD-049 -> TD-057
 TD-004 -> TD-012 -> TD-013 -> TD-051/054/055 -> TD-057
 ```
 
-Codex 路径 `TD-003 -> TD-048` 是独立范围风险，不应阻塞其他 Provider 和四页面骨架。
+Codex 路径 `TD-003 -> TD-048` 在 P0 只交付明确降级状态，不阻塞其他 Provider 和四页面骨架；真实 Connector 待 GATE-02 重开条件全部通过后恢复。
 
 ## 6. 需求追踪
 
