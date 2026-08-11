@@ -33,7 +33,13 @@ let package = Package(
             dependencies: ["TokenDeskCore", "TokenDeskDesign"]
         ),
         .testTarget(name: "TokenDeskCoreTests", dependencies: ["TokenDeskCore"]),
-        .testTarget(name: "TokenDeskDataTests", dependencies: ["TokenDeskData"]),
+        .testTarget(
+            name: "TokenDeskDataTests",
+            dependencies: [
+                "TokenDeskData",
+                .product(name: "GRDB", package: "GRDB.swift"),
+            ]
+        ),
         .testTarget(
             name: "TokenDeskConnectorsTests",
             dependencies: ["TokenDeskConnectors", "TokenDeskCore"]
