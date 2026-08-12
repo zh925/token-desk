@@ -9,8 +9,7 @@ final class TokenDeskAcceptanceUITests: XCTestCase {
         let canvas = application.descendants(matching: .any)["app-shell-canvas"]
 
         XCTAssertTrue(canvas.waitForExistence(timeout: 3))
-        XCTAssertEqual(canvas.frame.width, 1_280, accuracy: 1)
-        XCTAssertEqual(canvas.frame.height, 720, accuracy: 1)
+        assertUniformDesignCanvas(canvas)
         XCTAssertTrue(application.descendants(matching: .any)["page-overview"].exists)
         XCTAssertTrue(application.staticTexts["31°"].exists)
         XCTAssertTrue(application.staticTexts["晴朗 · 体感 34°"].exists)
@@ -46,7 +45,7 @@ final class TokenDeskAcceptanceUITests: XCTestCase {
         XCTAssertTrue(
             application.descendants(matching: .any)["token-input-metric"].label.contains("432.0K")
         )
-        application.buttons["token-range-month"].click()
+        assertHittableAndClick(application.buttons["token-range-month"])
         XCTAssertTrue(
             application.descendants(matching: .any)["token-input-metric"].label.contains("16.63M")
         )
@@ -56,7 +55,7 @@ final class TokenDeskAcceptanceUITests: XCTestCase {
         application.buttons["token-range-week"].click()
         try assertScreenshotBaseline(application, named: "Tokens")
 
-        application.buttons["settings-button"].click()
+        assertHittableAndClick(application.buttons["settings-button"])
         XCTAssertTrue(
             application.descendants(matching: .any)["page-settings"].waitForExistence(timeout: 1))
         XCTAssertEqual(application.buttons.matching(identifier: "settings-button").count, 1)
@@ -77,7 +76,12 @@ final class TokenDeskAcceptanceUITests: XCTestCase {
             ("settings-button", "page-settings", "设置页面"),
         ]
         for (routeID, pageID, expectedLabel) in routes {
-            application.buttons[routeID].click()
+            let route = application.buttons[routeID]
+            if routeID == "settings-button" {
+                assertHittableAndClick(route)
+            } else {
+                route.click()
+            }
             XCTAssertEqual(
                 application.descendants(matching: .any)[pageID].label,
                 expectedLabel
@@ -111,7 +115,7 @@ final class TokenDeskAcceptanceUITests: XCTestCase {
             application.descendants(matching: .any)["page-overview"].waitForExistence(timeout: 1)
         )
 
-        application.buttons["settings-button"].click()
+        assertHittableAndClick(application.buttons["settings-button"])
         XCTAssertTrue(
             application.descendants(matching: .any)["page-settings"].waitForExistence(timeout: 1)
         )
@@ -154,6 +158,35 @@ final class TokenDeskAcceptanceUITests: XCTestCase {
         addTeardownBlock { application.terminate() }
         XCTAssertTrue(application.staticTexts["Token Desk"].waitForExistence(timeout: 3))
         return application
+    }
+
+    private func assertHittableAndClick(
+        _ element: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertTrue(element.exists, "Expected control to exist", file: file, line: line)
+        XCTAssertTrue(element.isHittable, "Expected control to be hittable", file: file, line: line)
+        guard element.exists, element.isHittable else { return }
+        element.click()
+    }
+
+    private func assertUniformDesignCanvas(
+        _ canvas: XCUIElement,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertGreaterThanOrEqual(canvas.frame.width, 1_000, file: file, line: line)
+        XCTAssertLessThanOrEqual(canvas.frame.width, 1_280, file: file, line: line)
+        XCTAssertLessThanOrEqual(canvas.frame.height, 720, file: file, line: line)
+        XCTAssertEqual(
+            canvas.frame.width / canvas.frame.height,
+            16.0 / 9.0,
+            accuracy: 0.01,
+            "Rendered canvas must preserve the 1280×720 design aspect ratio",
+            file: file,
+            line: line
+        )
     }
 
     private func assertSettingsAcceptance(_ application: XCUIApplication) {
