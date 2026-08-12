@@ -78,6 +78,46 @@ func syncRetriesNetworkAndRetryAfterButNeverRetriesAuthentication() async throws
 }
 
 @Test
+func oneFailedProviderDoesNotAffectTheOtherEightMVPProviders() async throws {
+    let providerIDs = [
+        "anthropic", "codex", "deepseek", "gemini", "glm", "kimi", "minimax", "openai",
+        "openrouter",
+    ]
+    let failedProviderID = "openrouter"
+    var connectors: [SyncTestConnector] = []
+    var accounts: [ProviderID: [AccountReference]] = [:]
+
+    for providerID in providerIDs {
+        let behavior = SyncBehavior(
+            failures: providerID == failedProviderID ? [.authentication] : []
+        )
+        let connector = try makeSyncConnector(id: providerID, behavior: behavior)
+        connectors.append(connector)
+        accounts[connector.descriptor.id] = [
+            try makeSyncAccount(providerID: connector.descriptor.id)
+        ]
+    }
+
+    let repository = SyncRepositorySpy()
+    let coordinator = SyncCoordinator(
+        registry: try ProviderConnectorRegistry(connectors: connectors),
+        repository: repository
+    )
+    let report = await coordinator.manualSync(
+        accountsByProvider: accounts,
+        interval: DateInterval(start: .distantPast, duration: 1)
+    )
+
+    #expect(report.providers.count == 9)
+    #expect(
+        report.providers.first { $0.providerID.rawValue == failedProviderID }?.status
+            == .failed(.authentication)
+    )
+    #expect(report.providers.filter { $0.status == .succeeded }.count == 8)
+    #expect(repository.usageWriteCount == 8)
+}
+
+@Test
 func cancellationStopsAnInFlightProviderBeforePersistence() async throws {
     let gate = StartGate()
     let behavior = SyncBehavior(delay: .seconds(60), startGate: gate)

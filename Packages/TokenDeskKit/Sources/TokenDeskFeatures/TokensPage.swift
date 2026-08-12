@@ -23,29 +23,36 @@ public final class TokensPageStore {
         selectedRange: TokenTimeRange = .week,
         contentState: DashboardContentState<TokenDashboardSnapshot>? = nil
     ) {
-        self.providers = providers
-        self.selectedProviderID =
+        let resolvedProviderID =
             providers.contains(where: { $0.id == selectedProviderID })
             ? selectedProviderID : providers.first?.id ?? selectedProviderID
+        self.providers = providers
+        self.selectedProviderID = resolvedProviderID
         self.selectedRange = selectedRange
         self.contentState =
             contentState
-            ?? .loaded(
-                DashboardFixtures.tokens(providerID: selectedProviderID, range: selectedRange))
+            ?? DashboardFixtures.tokenContentState(
+                providerID: resolvedProviderID,
+                range: selectedRange
+            )
     }
 
     /// Selects an enabled provider and atomically replaces the displayed snapshot.
     public func selectProvider(_ id: String) {
         guard providers.contains(where: { $0.id == id }) else { return }
         selectedProviderID = id
-        contentState = .loaded(DashboardFixtures.tokens(providerID: id, range: selectedRange))
+        contentState = DashboardFixtures.tokenContentState(
+            providerID: id,
+            range: selectedRange
+        )
     }
 
     /// Selects an aggregation range and atomically replaces the displayed snapshot.
     public func selectRange(_ range: TokenTimeRange) {
         selectedRange = range
-        contentState = .loaded(
-            DashboardFixtures.tokens(providerID: selectedProviderID, range: range)
+        contentState = DashboardFixtures.tokenContentState(
+            providerID: selectedProviderID,
+            range: range
         )
     }
 }
@@ -130,6 +137,9 @@ public struct TokensPage: View {
                 )
                 .accessibilityLabel("\(provider.name)，\(provider.status.label)")
                 .accessibilityIdentifier("token-provider-\(provider.id)")
+                .accessibilityAddTraits(
+                    store.selectedProviderID == provider.id ? .isSelected : []
+                )
             }
             Spacer(minLength: 0)
         }

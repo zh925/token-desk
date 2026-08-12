@@ -52,10 +52,6 @@ struct ProviderSettingsOption: Identifiable, Equatable, Sendable {
             organizationCredentialHint: "Credits 需只读管理密钥"
         ),
         .init(
-            id: "codex", title: "Codex", capabilities: [.plan, .usage],
-            organizationCredentialHint: "仅展示当前沙箱可获得能力"
-        ),
-        .init(
             id: "glm", title: "智谱 GLM", capabilities: [.usage, .localEstimate],
             organizationCredentialHint: "无公开历史接口时使用明确标识的本地聚合"
         ),
