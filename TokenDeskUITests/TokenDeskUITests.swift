@@ -2,6 +2,46 @@ import XCTest
 
 @MainActor
 final class TokenDeskUITests: XCTestCase {
+    func testColdLaunchPerformance() {
+        let options = XCTMeasureOptions()
+        options.iterationCount = 5
+        measure(
+            metrics: [XCTApplicationLaunchMetric(waitUntilResponsive: true)],
+            options: options
+        ) {
+            let application = XCUIApplication()
+            application.launch()
+            XCTAssertTrue(application.staticTexts["Token Desk"].waitForExistence(timeout: 2))
+            application.terminate()
+        }
+    }
+
+    func testActiveIdleResourcePerformance() {
+        let application = XCUIApplication()
+        application.launch()
+        XCTAssertTrue(application.staticTexts["Token Desk"].waitForExistence(timeout: 2))
+        let options = XCTMeasureOptions()
+        options.iterationCount = 3
+
+        measure(metrics: [XCTCPUMetric(), XCTMemoryMetric()], options: options) {
+            Thread.sleep(forTimeInterval: 5)
+        }
+    }
+
+    func testPageSwitchPerformance() {
+        let application = XCUIApplication()
+        application.launch()
+        XCTAssertTrue(application.buttons["route-overview"].waitForExistence(timeout: 2))
+        let options = XCTMeasureOptions()
+        options.iterationCount = 5
+
+        measure(metrics: [XCTClockMetric()], options: options) {
+            application.buttons["route-plans"].click()
+            application.buttons["route-tokens"].click()
+            application.buttons["route-overview"].click()
+        }
+    }
+
     func testAppShellFitsBaselineAndUsesSingleSettingsEntry() {
         let application = XCUIApplication()
         application.launch()

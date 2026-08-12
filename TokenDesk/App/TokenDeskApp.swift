@@ -151,7 +151,10 @@ private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConn
         )
     }
 
-    func refreshDashboardData(location: WeatherLocation?) async -> DashboardRefreshResult {
+    func refreshDashboardData(
+        location: WeatherLocation?,
+        scope: DashboardRefreshScope
+    ) async -> DashboardRefreshResult {
         let startedAt = Date()
         do {
             let services = try services()
@@ -175,10 +178,11 @@ private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConn
                 interval: DateInterval(
                     start: startedAt.addingTimeInterval(-35 * 86_400),
                     end: startedAt
-                )
+                ),
+                capabilities: scope.providerCapabilities
             )
             let weatherResult: WeatherSyncResult?
-            if let location {
+            if scope.contains(.weather), let location {
                 do {
                     weatherResult = try await WeatherSyncCoordinator(
                         service: OpenMeteoConnector(),

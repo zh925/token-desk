@@ -12,26 +12,33 @@ public struct DashboardClockPresentation: Equatable, Sendable {
 
     /// Formats a date in an explicit timezone without relying on process defaults.
     public static func make(date: Date, timeZone: TimeZone) -> Self {
-        let locale = Locale(identifier: "zh_CN")
-        let calendar = Calendar(identifier: .gregorian)
+        DashboardClockPresentationFormatter().make(date: date, timeZone: timeZone)
+    }
+}
 
-        let timeFormatter = DateFormatter()
+private final class DashboardClockPresentationFormatter {
+    private let locale = Locale(identifier: "zh_CN")
+    private let timeFormatter: DateFormatter
+    private let dateFormatter: DateFormatter
+
+    init() {
+        let calendar = Calendar(identifier: .gregorian)
+        timeFormatter = DateFormatter()
         timeFormatter.calendar = calendar
         timeFormatter.locale = locale
-        timeFormatter.timeZone = timeZone
         timeFormatter.dateFormat = "HH:mm:ss"
-
-        let dateFormatter = DateFormatter()
+        dateFormatter = DateFormatter()
         dateFormatter.calendar = calendar
         dateFormatter.locale = locale
-        dateFormatter.timeZone = timeZone
         dateFormatter.dateFormat = "yyyy年M月d日 · EEEE"
+    }
 
+    func make(date: Date, timeZone: TimeZone) -> DashboardClockPresentation {
+        timeFormatter.timeZone = timeZone
+        dateFormatter.timeZone = timeZone
         let timeZoneNameStyle: TimeZone.NameStyle =
-            timeZone.isDaylightSavingTime(for: date)
-            ? .daylightSaving : .standard
-
-        return Self(
+            timeZone.isDaylightSavingTime(for: date) ? .daylightSaving : .standard
+        return DashboardClockPresentation(
             time: timeFormatter.string(from: date),
             date: dateFormatter.string(from: date),
             timeZone: timeZone.localizedName(for: timeZoneNameStyle, locale: locale)
@@ -52,6 +59,7 @@ public final class DashboardClock {
     public private(set) var resumeCount = 0
 
     @ObservationIgnored private let nowProvider: @Sendable () -> Date
+    @ObservationIgnored private let formatter = DashboardClockPresentationFormatter()
     @ObservationIgnored private var tickerTask: Task<Void, Never>?
 
     /// Creates a clock with injectable wall time and optional timezone override.
@@ -77,7 +85,7 @@ public final class DashboardClock {
 
     /// Current strings rendered by the clock subtree.
     public var presentation: DashboardClockPresentation {
-        .make(date: now, timeZone: timeZone)
+        formatter.make(date: now, timeZone: timeZone)
     }
 
     /// Starts the one-second ticker if it is not already running.
@@ -87,7 +95,7 @@ public final class DashboardClock {
         tickerTask = Task { [weak self] in
             while !Task.isCancelled {
                 do {
-                    try await Task.sleep(for: .seconds(1))
+                    try await Task.sleep(for: .seconds(1), tolerance: .milliseconds(100))
                 } catch {
                     return
                 }

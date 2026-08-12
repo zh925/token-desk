@@ -382,6 +382,43 @@ func dashboardPagesRenderAtFixedContentSizeForStableSnapshots() throws {
 }
 
 @Test @MainActor
+func tokenChartRenderingStaysWithinFrameBudget() throws {
+    let page = TokensPage()
+    try assertRendered(page, width: 1_280, height: 662)
+    let clock = ContinuousClock()
+
+    let elapsed = try clock.measure {
+        for _ in 0..<10 {
+            try assertRendered(page, width: 1_280, height: 662)
+        }
+    }
+
+    #expect(elapsed < .milliseconds(160))
+}
+
+@Test @MainActor
+func dashboardPageRenderingStaysWithinSwitchBudget() throws {
+    let fixedDate = Date(timeIntervalSince1970: 1_786_417_268)
+    let dashboardClock = DashboardClock(now: fixedDate, nowProvider: { fixedDate })
+    dashboardClock.stop()
+    let pages = [
+        AnyView(OverviewPage(clock: dashboardClock)),
+        AnyView(PlansPage()),
+        AnyView(TokensPage()),
+        AnyView(SettingsPage(store: SettingsStore(), clock: dashboardClock)),
+    ]
+    let clock = ContinuousClock()
+
+    for page in pages {
+        try assertRendered(page, width: 1_280, height: 662)
+        let elapsed = try clock.measure {
+            try assertRendered(page, width: 1_280, height: 662)
+        }
+        #expect(elapsed < .milliseconds(100))
+    }
+}
+
+@Test @MainActor
 func deniedLocationKeepsManualCityFallbackAvailableAndPersistent() async {
     let preferences = TestPreferencesStore()
     let location = TestLocationService(status: .denied)
@@ -554,6 +591,26 @@ func settingsPageRendersAllFiveSectionsInsideFixedCanvas() throws {
     clock.stop()
 }
 
+@Test @MainActor
+func activePollingUsesTieredCadencesAndStopsOnCancellation() async {
+    let provider = PollingDashboardDataProvider()
+    let sleeper = PollingSleeperProbe(maximumTicks: 15)
+    let store = DashboardStore(dataProvider: provider)
+
+    await store.runPolling(
+        location: nil,
+        weatherRefreshMinutes: 15,
+        sleeper: { duration in try await sleeper.sleep(duration) }
+    )
+
+    let scopes = await provider.scopes
+    #expect(scopes.count == 15)
+    #expect(scopes.allSatisfy { $0.contains(.usage) })
+    #expect(scopes.filter { $0.contains(.money) }.count == 3)
+    #expect(scopes.filter { $0.contains(.weather) }.count == 1)
+    #expect(await sleeper.durations.allSatisfy { $0 == .seconds(60) })
+}
+
 private func loadedSnapshot(
     from state: DashboardContentState<TokenDashboardSnapshot>
 ) -> TokenDashboardSnapshot? {
@@ -578,7 +635,10 @@ private final class TestDashboardDataProvider: DashboardDataProviding, @unchecke
         return data
     }
 
-    func refreshDashboardData(location: WeatherLocation?) async -> DashboardRefreshResult {
+    func refreshDashboardData(
+        location: WeatherLocation?,
+        scope: DashboardRefreshScope
+    ) async -> DashboardRefreshResult {
         let providerID = data.configurations.first?.providerID
         let providers =
             providerID.map {
@@ -599,6 +659,40 @@ private final class TestDashboardDataProvider: DashboardDataProviding, @unchecke
 
 private enum TestDashboardDataError: Error {
     case databaseUnavailable
+}
+
+private actor PollingDashboardDataProvider: DashboardDataProviding {
+    private(set) var scopes: [DashboardRefreshScope] = []
+
+    func loadCachedDashboardData() async throws -> DashboardDataSnapshot {
+        emptyDashboardData()
+    }
+
+    func refreshDashboardData(
+        location: WeatherLocation?,
+        scope: DashboardRefreshScope
+    ) async -> DashboardRefreshResult {
+        scopes.append(scope)
+        let now = Date(timeIntervalSince1970: 1_700_000_000)
+        return DashboardRefreshResult(
+            providerReport: SyncReport(startedAt: now, completedAt: now, providers: []),
+            weatherResult: nil
+        )
+    }
+}
+
+private actor PollingSleeperProbe {
+    private let maximumTicks: Int
+    private(set) var durations: [Duration] = []
+
+    init(maximumTicks: Int) {
+        self.maximumTicks = maximumTicks
+    }
+
+    func sleep(_ duration: Duration) throws {
+        guard durations.count < maximumTicks else { throw CancellationError() }
+        durations.append(duration)
+    }
 }
 
 private func emptyDashboardData() -> DashboardDataSnapshot {

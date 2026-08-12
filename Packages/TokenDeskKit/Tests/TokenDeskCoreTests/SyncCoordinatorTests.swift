@@ -189,6 +189,36 @@ func cancellationStopsAnInFlightProviderBeforePersistence() async throws {
     #expect(repository.usageWriteCount == 0)
 }
 
+@Test
+func scopedSyncSkipsConnectorsWithoutADueCapability() async throws {
+    let behavior = SyncBehavior()
+    let connector = try makeSyncConnector(id: "usage-only", behavior: behavior)
+    let coordinator = SyncCoordinator(
+        registry: try ProviderConnectorRegistry(connectors: [connector]),
+        repository: SyncRepositorySpy()
+    )
+    let accounts = [
+        connector.descriptor.id: [try makeSyncAccount(providerID: connector.descriptor.id)]
+    ]
+    let interval = DateInterval(start: .distantPast, duration: 1)
+
+    let moneyReport = await coordinator.manualSync(
+        accountsByProvider: accounts,
+        interval: interval,
+        capabilities: [.cost, .balance]
+    )
+    #expect(moneyReport.providers.isEmpty)
+    #expect(await behavior.attempts == 0)
+
+    let usageReport = await coordinator.manualSync(
+        accountsByProvider: accounts,
+        interval: interval,
+        capabilities: [.usage]
+    )
+    #expect(usageReport.providers.count == 1)
+    #expect(await behavior.attempts == 1)
+}
+
 private struct SyncTestConnector: ProviderConnector {
     let descriptor: ProviderDescriptor
     let behavior: SyncBehavior

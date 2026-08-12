@@ -30,7 +30,6 @@ public struct TokenDeskAppShell: View {
                 await dashboardStore.refresh(location: settingsStore.resolvedLocation)
             }
             routeContent
-                .id(router.route)
         }
         .frame(width: TokenDeskDesign.Canvas.width, height: TokenDeskDesign.Canvas.height)
         .background(TokenDeskDesign.Palette.surfaceMid.color)
@@ -43,6 +42,13 @@ public struct TokenDeskAppShell: View {
             await settingsStore.prepareWeatherLocation()
             await dashboardStore.start(location: settingsStore.resolvedLocation)
         }
+        .task(id: pollingTaskID) {
+            guard scenePhase == .active else { return }
+            await dashboardStore.runPolling(
+                location: settingsStore.resolvedLocation,
+                weatherRefreshMinutes: settingsStore.preferences.weatherRefreshMinutes
+            )
+        }
         .onDisappear {
             clock.stop()
         }
@@ -52,6 +58,8 @@ public struct TokenDeskAppShell: View {
                 Task {
                     await dashboardStore.refresh(location: settingsStore.resolvedLocation)
                 }
+            } else {
+                clock.stop()
             }
         }
     }
@@ -81,5 +89,10 @@ public struct TokenDeskAppShell: View {
                 background: TokenDeskDesign.Palette.surfaceMuted.color
             )
         }
+    }
+
+    private var pollingTaskID: String {
+        let locationKey = settingsStore.resolvedLocation?.key ?? "no-weather-location"
+        return "\(scenePhase)-\(settingsStore.preferences.weatherRefreshMinutes)-\(locationKey)"
     }
 }

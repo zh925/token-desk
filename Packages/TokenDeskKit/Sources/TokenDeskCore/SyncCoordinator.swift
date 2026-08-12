@@ -120,11 +120,18 @@ public actor SyncCoordinator {
     /// Starts a user-requested sync, cancelling any older run before it can write more data.
     public func manualSync(
         accountsByProvider: [ProviderID: [AccountReference]],
-        interval: DateInterval
+        interval: DateInterval,
+        capabilities requestedCapabilities: Set<ProviderCapability>? = nil
     ) async -> SyncReport {
         activeTask?.cancel()
         let runID = UUID()
-        let connectors = await registry.allConnectors()
+        let connectors = await registry.allConnectors().filter { connector in
+            guard let requestedCapabilities else { return true }
+            return ProviderCapability.allCases.contains {
+                requestedCapabilities.contains($0)
+                    && connector.descriptor.capabilities.contains($0)
+            }
+        }
         let startedAt = now()
         let repository = repository
         let policy = retryPolicy
@@ -136,6 +143,7 @@ public actor SyncCoordinator {
                 connectors,
                 accountsByProvider: accountsByProvider,
                 interval: interval,
+                requestedCapabilities: requestedCapabilities,
                 repository: repository,
                 policy: policy,
                 sleeper: sleeper,
@@ -166,6 +174,7 @@ public actor SyncCoordinator {
         _ connectors: [any ProviderConnector],
         accountsByProvider: [ProviderID: [AccountReference]],
         interval: DateInterval,
+        requestedCapabilities: Set<ProviderCapability>?,
         repository: any ProviderSyncRepository,
         policy: SyncRetryPolicy,
         sleeper: @escaping Sleeper,
@@ -179,6 +188,7 @@ public actor SyncCoordinator {
                         connector,
                         accounts: accounts,
                         interval: interval,
+                        requestedCapabilities: requestedCapabilities,
                         repository: repository,
                         policy: policy,
                         sleeper: sleeper,
@@ -199,12 +209,25 @@ public actor SyncCoordinator {
         _ connector: any ProviderConnector,
         accounts: [AccountReference],
         interval: DateInterval,
+        requestedCapabilities: Set<ProviderCapability>?,
         repository: any ProviderSyncRepository,
         policy: SyncRetryPolicy,
         sleeper: @escaping Sleeper,
         randomUnit: @escaping RandomUnit
     ) async -> ProviderSyncResult {
         var maximumAttempts = 1
+        let shouldFetch: (ProviderCapability) -> Bool = { capability in
+            connector.descriptor.capabilities.contains(capability)
+                && (requestedCapabilities?.contains(capability) ?? true)
+        }
+        let hasRequestedCapability = ProviderCapability.allCases.contains(where: shouldFetch)
+        guard hasRequestedCapability else {
+            return ProviderSyncResult(
+                providerID: connector.descriptor.id,
+                status: .succeeded,
+                attempts: maximumAttempts
+            )
+        }
         do {
             for account in accounts {
                 let (_, validationAttempts) = try await retry(
@@ -216,7 +239,7 @@ public actor SyncCoordinator {
                 }
                 maximumAttempts = max(maximumAttempts, validationAttempts)
 
-                if connector.descriptor.capabilities.contains(.plan) {
+                if shouldFetch(.plan) {
                     let (result, attempts) = try await retry(
                         policy: policy,
                         sleeper: sleeper,
@@ -226,7 +249,7 @@ public actor SyncCoordinator {
                     try Task.checkCancellation()
                     if result.state == .available { try repository.savePlans(result.values) }
                 }
-                if connector.descriptor.capabilities.contains(.usage) {
+                if shouldFetch(.usage) {
                     let (result, attempts) = try await retry(
                         policy: policy,
                         sleeper: sleeper,
@@ -236,7 +259,7 @@ public actor SyncCoordinator {
                     try Task.checkCancellation()
                     if result.state == .available { try repository.saveUsage(result.values) }
                 }
-                if connector.descriptor.capabilities.contains(.cost) {
+                if shouldFetch(.cost) {
                     let (result, attempts) = try await retry(
                         policy: policy,
                         sleeper: sleeper,
@@ -246,7 +269,7 @@ public actor SyncCoordinator {
                     try Task.checkCancellation()
                     if result.state == .available { try repository.saveCosts(result.values) }
                 }
-                if connector.descriptor.capabilities.contains(.balance) {
+                if shouldFetch(.balance) {
                     let (result, attempts) = try await retry(
                         policy: policy,
                         sleeper: sleeper,

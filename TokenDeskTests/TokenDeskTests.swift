@@ -48,4 +48,28 @@ final class TokenDeskTests: XCTestCase {
             add(attachment)
         }
     }
+
+    func testPageRenderingPerformanceMetrics() {
+        let router = AppRouter()
+        let clock = DashboardClock(
+            now: Date(timeIntervalSince1970: 1_786_417_268),
+            nowProvider: { Date(timeIntervalSince1970: 1_786_417_268) }
+        )
+        let shell = TokenDeskAppShell(router: router, clock: clock)
+        let options = XCTMeasureOptions()
+        options.iterationCount = 5
+
+        measure(
+            metrics: [XCTClockMetric(), XCTCPUMetric(), XCTMemoryMetric()],
+            options: options
+        ) {
+            for route in AppRoute.allCases {
+                router.select(route)
+                let renderer = ImageRenderer(content: shell)
+                renderer.scale = 1
+                XCTAssertNotNil(renderer.nsImage)
+            }
+        }
+        clock.stop()
+    }
 }
