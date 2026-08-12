@@ -24,9 +24,11 @@ struct TokenDeskApp: App {
             )
         )
         let providerServices = ApplicationProviderServices()
-        _dashboardStore = State(
-            initialValue: DashboardStore(dataProvider: providerServices)
-        )
+        let dashboardStore = DashboardStore(dataProvider: providerServices)
+        if ProcessInfo.processInfo.arguments.contains("--app-review-demo") {
+            dashboardStore.activateAppReviewDemo(.representative)
+        }
+        _dashboardStore = State(initialValue: dashboardStore)
         _settingsStore = State(
             initialValue: SettingsStore(
                 preferencesStore: preferencesStore,

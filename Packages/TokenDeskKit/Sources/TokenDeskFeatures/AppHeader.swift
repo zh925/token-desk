@@ -31,16 +31,25 @@ public struct AppHeader: View {
 
             Spacer()
 
-            TokenDeskStatusBadge(dashboardStore.headerStatus)
+            if dashboardStore.isReviewDemoActive {
+                Text("◇ APP REVIEW 演示")
+                    .font(TokenDeskTextStyle.auxiliary.font)
+                    .accessibilityIdentifier("app-review-demo-banner")
+            } else {
+                TokenDeskStatusBadge(dashboardStore.headerStatus)
+            }
 
             Text(lastUpdatedDescription)
                 .font(TokenDeskTextStyle.auxiliary.font)
 
-            Button(dashboardStore.isSynchronizing ? "同步中" : "同步") {
+            Button(
+                dashboardStore.isReviewDemoActive
+                    ? "演示固定" : (dashboardStore.isSynchronizing ? "同步中" : "同步")
+            ) {
                 Task { await synchronize() }
             }
             .buttonStyle(TokenDeskButtonStyle())
-            .disabled(dashboardStore.isSynchronizing)
+            .disabled(dashboardStore.isSynchronizing || dashboardStore.isReviewDemoActive)
             .accessibilityIdentifier("sync-button")
 
             Button("设置") {
@@ -61,6 +70,7 @@ public struct AppHeader: View {
     }
 
     private var lastUpdatedDescription: String {
+        if let scenario = dashboardStore.reviewScenario { return scenario.title }
         guard let date = dashboardStore.lastUpdatedAt else { return "尚未同步" }
         return "最后更新 \(date.formatted(date: .omitted, time: .shortened))"
     }

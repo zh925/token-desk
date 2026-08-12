@@ -52,9 +52,12 @@ struct DashboardStateView<Value: Equatable & Sendable, Content: View>: View {
         HStack(spacing: TokenDeskDesign.Spacing.small) {
             Text(symbol)
                 .font(TokenDeskTextStyle.control.font)
+                .accessibilityHidden(true)
             Text(text)
                 .font(TokenDeskTextStyle.auxiliary.font)
                 .lineLimit(1)
+                .accessibilityLabel(text)
+                .accessibilityIdentifier("dashboard-state-banner-text")
             Spacer(minLength: 0)
         }
         .padding(.horizontal, TokenDeskDesign.Spacing.medium)
@@ -63,7 +66,15 @@ struct DashboardStateView<Value: Equatable & Sendable, Content: View>: View {
         .overlay {
             Rectangle().stroke(TokenDeskDesign.Palette.ink.color, lineWidth: 1)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
+        .accessibilityValue(text)
+        .accessibilityIdentifier(statusIdentifier(for: text))
+    }
+
+    private func statusIdentifier(for text: String) -> String {
+        if text.contains("演示认证失败") { return "app-review-state-authentication" }
+        if text.contains("演示离线") { return "app-review-state-offline" }
+        return "dashboard-state-banner"
     }
 }
 
@@ -99,16 +110,28 @@ private struct StateMessage: View {
         VStack(spacing: TokenDeskDesign.Spacing.medium) {
             Text(symbol)
                 .font(TokenDeskTextStyle.primaryMetric.font)
+                .accessibilityHidden(true)
             Text(title)
                 .font(TokenDeskTextStyle.cardTitle.font)
+                .accessibilityLabel(title)
+                .accessibilityIdentifier("dashboard-state-title")
             Text(detail)
                 .font(TokenDeskTextStyle.body.font)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 520)
+                .accessibilityLabel(detail)
+                .accessibilityIdentifier("dashboard-state-detail")
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .accessibilityElement(children: .combine)
-        .accessibilityIdentifier("dashboard-state-message")
+        .accessibilityElement(children: .contain)
+        .accessibilityValue("\(title) · \(detail)")
+        .accessibilityIdentifier(stateIdentifier)
+    }
+
+    private var stateIdentifier: String {
+        if title.contains("演示限流") { return "app-review-state-rate-limited" }
+        if title == "官方生产接口暂不可用" { return "app-review-state-unsupported" }
+        return "dashboard-state-message"
     }
 }
 

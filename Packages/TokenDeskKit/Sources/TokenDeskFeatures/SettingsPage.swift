@@ -7,16 +7,22 @@ import TokenDeskDesign
 public struct SettingsPage: View {
     @Bindable private var store: SettingsStore
     @Bindable private var clock: DashboardClock
+    @Bindable private var dashboardStore: DashboardStore
     @State private var deletionAccountID: AccountID?
     @State private var pendingHistoryClear: HistoryClearScope?
 
     /// Creates the page with injected settings and isolated clock state.
-    public init(store: SettingsStore, clock: DashboardClock) {
+    public init(
+        store: SettingsStore,
+        clock: DashboardClock,
+        dashboardStore: DashboardStore = DashboardStore()
+    ) {
         self.store = store
         self.clock = clock
+        self.dashboardStore = dashboardStore
     }
 
-    /// Fixed-canvas five-section settings layout.
+    /// Fixed-canvas six-section settings layout, including credential-free App Review controls.
     public var body: some View {
         VStack(spacing: TokenDeskDesign.Spacing.large) {
             PageHeading(
@@ -100,11 +106,77 @@ public struct SettingsPage: View {
     @ViewBuilder
     private var sectionContent: some View {
         switch store.selectedSection {
+        case .appReview: appReviewSettings
         case .providers: providerSettings
         case .weather: weatherSettings
         case .display: displaySettings
         case .notifications: notificationSettings
         case .dataExport: dataExportSettings
+        }
+    }
+
+    private var appReviewSettings: some View {
+        settingsPanel("APP REVIEW · 内置演示") {
+            VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.large) {
+                HStack {
+                    VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.extraSmall) {
+                        Text(
+                            dashboardStore.isReviewDemoActive
+                                ? "演示模式已启用" : "当前使用本地缓存与已配置的官方数据源"
+                        )
+                        .font(TokenDeskTextStyle.cardTitle.font)
+                        Text(
+                            dashboardStore.reviewScenario?.detail
+                                ?? "选择任一场景即可验证核心页面，无需输入 Provider 凭据。"
+                        )
+                        .font(TokenDeskTextStyle.auxiliary.font)
+                    }
+                    Spacer()
+                    if dashboardStore.isReviewDemoActive {
+                        Text("◇ 仅演示数据")
+                            .font(TokenDeskTextStyle.control.font)
+                            .accessibilityIdentifier("app-review-demo-active")
+                    }
+                }
+
+                HStack(spacing: TokenDeskDesign.Spacing.small) {
+                    ForEach(AppReviewDemoScenario.allCases) { scenario in
+                        Button(scenario.title) {
+                            dashboardStore.activateAppReviewDemo(scenario)
+                        }
+                        .buttonStyle(
+                            TokenDeskButtonStyle(
+                                isSelected: dashboardStore.reviewScenario == scenario
+                            )
+                        )
+                        .accessibilityIdentifier("app-review-scenario-\(scenario.rawValue)")
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.small) {
+                    Text("验证路径")
+                        .font(TokenDeskTextStyle.cardTitle.font)
+                    Text("1 总览 → 2 套餐 → 3 Token → 右上角设置；再切换离线、认证和限流场景。")
+                    Text("演示快照不含密钥、邮箱、组织/项目 ID 或真实账户标识，也不会写入历史或导出。")
+                    Text("所有演示数值持续显示 ◇ 演示标识；Codex 仍为不支持且不显示伪造额度。")
+                }
+                .font(TokenDeskTextStyle.body.font)
+
+                HStack {
+                    Text("退出后会重新读取本地缓存并按正常边界同步。")
+                        .font(TokenDeskTextStyle.auxiliary.font)
+                    Spacer()
+                    Button("退出演示并恢复本地数据") {
+                        Task {
+                            await dashboardStore.deactivateAppReviewDemo(
+                                location: store.resolvedLocation
+                            )
+                        }
+                    }
+                    .disabled(!dashboardStore.isReviewDemoActive)
+                    .accessibilityIdentifier("app-review-exit-button")
+                }
+            }
         }
     }
 

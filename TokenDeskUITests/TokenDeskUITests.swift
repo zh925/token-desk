@@ -44,6 +44,7 @@ final class TokenDeskUITests: XCTestCase {
 
     func testAppShellFitsBaselineAndUsesSingleSettingsEntry() {
         let application = XCUIApplication()
+        application.launchArguments = ["--app-review-demo"]
         application.launch()
 
         XCTAssertTrue(application.staticTexts["Token Desk"].waitForExistence(timeout: 2))
@@ -70,6 +71,7 @@ final class TokenDeskUITests: XCTestCase {
 
     func testKeyboardNavigationAndSettingsRoute() {
         let application = XCUIApplication()
+        application.launchArguments = ["--app-review-demo"]
         application.launch()
 
         XCTAssertTrue(application.staticTexts["总览页面"].waitForExistence(timeout: 2))
@@ -86,7 +88,9 @@ final class TokenDeskUITests: XCTestCase {
         application.buttons["settings-button"].click()
         XCTAssertTrue(application.staticTexts["设置页面"].waitForExistence(timeout: 1))
 
-        for section in ["providers", "weather", "display", "notifications", "dataExport"] {
+        for section in [
+            "appReview", "providers", "weather", "display", "notifications", "dataExport",
+        ] {
             XCTAssertTrue(application.buttons["settings-section-\(section)"].exists)
         }
 
@@ -104,6 +108,7 @@ final class TokenDeskUITests: XCTestCase {
 
     func testAllNineProvidersCanSwitchAndCodexRemainsValueFree() {
         let application = XCUIApplication()
+        application.launchArguments = ["--app-review-demo"]
         application.launch()
 
         XCTAssertTrue(application.staticTexts["总览页面"].waitForExistence(timeout: 2))
@@ -121,11 +126,61 @@ final class TokenDeskUITests: XCTestCase {
             XCTAssertTrue(provider.isSelected, "Provider did not become selected: \(providerID)")
         }
 
-        XCTAssertTrue(application.staticTexts["官方生产接口暂不可用"].exists)
-        XCTAssertTrue(application.staticTexts["GATE-02 关闭期间不读取 Cookie、私有容器或真实额度。"].exists)
+        XCTAssertTrue(
+            application.descendants(matching: .any)["app-review-state-unsupported"].exists
+        )
         let inventedCodexValue = application.staticTexts.matching(
             NSPredicate(format: "label CONTAINS 'Codex API'")
         ).firstMatch
         XCTAssertFalse(inventedCodexValue.exists)
+    }
+
+    func testCredentialFreeAppReviewWorkflowCoversPagesErrorsAndDegradation() {
+        let application = XCUIApplication()
+        application.launchArguments = ["--app-review-demo"]
+        application.launch()
+
+        XCTAssertTrue(application.staticTexts["Token Desk"].waitForExistence(timeout: 2))
+        XCTAssertTrue(application.staticTexts["app-review-demo-banner"].exists)
+        XCTAssertTrue(application.staticTexts["总览页面"].exists)
+        XCTAssertTrue(application.staticTexts["今日用量 · 演示数据"].exists)
+
+        application.buttons["route-plans"].click()
+        XCTAssertTrue(application.staticTexts["套餐页面"].waitForExistence(timeout: 1))
+        XCTAssertTrue(application.staticTexts["PLAN WINDOWS · DEMO"].exists)
+        XCTAssertTrue(
+            application.descendants(matching: .any)["plan-window-codex-primary"].exists
+        )
+
+        application.buttons["route-tokens"].click()
+        XCTAssertTrue(application.staticTexts["Token页面"].waitForExistence(timeout: 1))
+        XCTAssertTrue(application.staticTexts["TOKEN USAGE · DEMO"].exists)
+
+        application.buttons["settings-button"].click()
+        application.buttons["settings-section-appReview"].click()
+        XCTAssertTrue(application.staticTexts["app-review-demo-active"].exists)
+
+        application.buttons["app-review-scenario-authentication"].click()
+        application.buttons["route-tokens"].click()
+        let authenticationBanner = application.descendants(matching: .any)[
+            "app-review-state-authentication"
+        ]
+        XCTAssertTrue(authenticationBanner.waitForExistence(timeout: 1))
+
+        application.buttons["settings-button"].click()
+        application.buttons["settings-section-appReview"].click()
+        application.buttons["app-review-scenario-rateLimited"].click()
+        application.buttons["route-tokens"].click()
+        let rateLimitMessage = application.descendants(matching: .any)[
+            "app-review-state-rate-limited"
+        ]
+        XCTAssertTrue(rateLimitMessage.waitForExistence(timeout: 1))
+
+        application.buttons["settings-button"].click()
+        application.buttons["settings-section-appReview"].click()
+        application.buttons["app-review-scenario-offline"].click()
+        application.buttons["route-overview"].click()
+        let offlineBanner = application.descendants(matching: .any)["app-review-state-offline"]
+        XCTAssertTrue(offlineBanner.waitForExistence(timeout: 1))
     }
 }

@@ -4,6 +4,7 @@ import TokenDeskCore
 
 /// Top-level sections in the product's single settings destination.
 public enum SettingsSection: String, CaseIterable, Hashable, Sendable {
+    case appReview
     case providers
     case weather
     case display
@@ -13,6 +14,7 @@ public enum SettingsSection: String, CaseIterable, Hashable, Sendable {
     /// User-facing navigation title.
     public var title: String {
         switch self {
+        case .appReview: "App Review"
         case .providers: "Providers"
         case .weather: "时间与天气"
         case .display: "显示"
