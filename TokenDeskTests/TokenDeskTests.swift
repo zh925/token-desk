@@ -76,7 +76,9 @@ final class TokenDeskTests: XCTestCase {
     }
 
     func testDisplayCanvasSurvivesThreeNativeFullScreenRoundTrips() async throws {
-        let screen = try XCTUnwrap(NSScreen.main)
+        guard let screen = NSScreen.main else {
+            throw XCTSkip("Native full-screen transitions require an interactive macOS display")
+        }
         let initialFrame = fittedWindowFrame(in: screen.visibleFrame)
         let window = NSWindow(
             contentRect: initialFrame,
