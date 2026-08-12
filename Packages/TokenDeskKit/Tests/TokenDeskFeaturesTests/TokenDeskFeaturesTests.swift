@@ -1,5 +1,6 @@
 import SwiftUI
 import Testing
+import TokenDeskCore
 import TokenDeskFeatures
 
 @Test
@@ -145,6 +146,108 @@ func dashboardPagesRenderAtFixedContentSizeForStableSnapshots() throws {
     )
 }
 
+@Test @MainActor
+func deniedLocationKeepsManualCityFallbackAvailableAndPersistent() async {
+    let preferences = TestPreferencesStore()
+    let location = TestLocationService(status: .denied)
+    let store = SettingsStore(preferencesStore: preferences, locationService: location)
+
+    await store.requestCurrentLocation()
+    #expect(store.locationAuthorization == .denied)
+    #expect(store.operationMessage?.contains("手工城市") == true)
+
+    store.preferences.manualCity = "上海"
+    await store.resolveManualCity()
+
+    #expect(store.resolvedLocation?.cityName == "上海")
+    #expect(preferences.value.manualCity == "上海")
+    #expect(location.currentLocationRequestCount == 1)
+}
+
+@Test @MainActor
+func notificationPermissionIsRequestedOnlyWhenAlertsAreEnabled() async {
+    let notifications = TestNotificationService(status: .notDetermined, grantsAccess: false)
+    let store = SettingsStore(notificationService: notifications)
+
+    await store.refreshSystemState()
+    #expect(notifications.requestCount == 0)
+
+    await store.setAlertsEnabled(false)
+    #expect(notifications.requestCount == 0)
+
+    await store.setAlertsEnabled(true)
+    #expect(notifications.requestCount == 1)
+    #expect(!store.preferences.alertsEnabled)
+    #expect(store.operationMessage?.contains("其他功能") == true)
+}
+
+@Test @MainActor
+func allowedNotificationPermissionPersistsAndRevocationRecovers() async {
+    let preferences = TestPreferencesStore()
+    let notifications = TestNotificationService(status: .notDetermined, grantsAccess: true)
+    let store = SettingsStore(
+        preferencesStore: preferences,
+        notificationService: notifications
+    )
+
+    await store.setAlertsEnabled(true)
+    #expect(store.notificationAuthorization == .authorized)
+    #expect(preferences.value.alertsEnabled)
+
+    notifications.status = .denied
+    await store.refreshSystemState()
+    #expect(!store.preferences.alertsEnabled)
+    #expect(!preferences.value.alertsEnabled)
+    #expect(store.operationMessage?.contains("撤销") == true)
+}
+
+@Test @MainActor
+func settingsStoreRestoresPreferencesAndTracksSystemLoginState() {
+    let saved = SettingsPreferences(
+        manualCity: "成都",
+        timeZoneOverrideIdentifier: "Asia/Shanghai",
+        weatherRefreshMinutes: 30,
+        showsHourlyWeather: false,
+        alertsEnabled: false,
+        exportFormat: .json
+    )
+    let preferences = TestPreferencesStore(value: saved)
+    let login = TestLaunchAtLoginService(status: .disabled)
+    let store = SettingsStore(preferencesStore: preferences, launchAtLoginService: login)
+
+    #expect(store.preferences == saved)
+    store.setLaunchAtLogin(true)
+    #expect(login.setValues == [true])
+    #expect(store.launchAtLoginStatus == .enabled)
+}
+
+@Test
+func exportFoundationUsesBOMAndExcludesSensitiveFields() throws {
+    let csv = HistoryExportFoundation.payload(format: .csv)
+    #expect(Array(csv.prefix(3)) == [0xEF, 0xBB, 0xBF])
+    let csvText = try #require(String(data: csv, encoding: .utf8))
+    #expect(csvText.contains("Provider"))
+    #expect(!csvText.localizedCaseInsensitiveContains("api key"))
+    #expect(!csvText.contains("Prompt"))
+    #expect(HistoryExportFoundation.payload(format: .json) == Data("[]\n".utf8))
+}
+
+@Test @MainActor
+func settingsPageRendersAllFiveSectionsInsideFixedCanvas() throws {
+    let clock = DashboardClock(nowProvider: { Date(timeIntervalSince1970: 1_700_000_000) })
+    let store = SettingsStore()
+
+    for section in SettingsSection.allCases {
+        store.selectedSection = section
+        try assertRendered(
+            SettingsPage(store: store, clock: clock),
+            width: 1_280,
+            height: 662
+        )
+    }
+    clock.stop()
+}
+
 private func loadedSnapshot(
     from state: DashboardContentState<TokenDashboardSnapshot>
 ) -> TokenDashboardSnapshot? {
@@ -171,4 +274,82 @@ private final class MutableNow: @unchecked Sendable {
     init(_ value: Date) {
         self.value = value
     }
+}
+
+@MainActor
+private final class TestPreferencesStore: SettingsPreferencesStoring {
+    var value: SettingsPreferences
+
+    init(value: SettingsPreferences = SettingsPreferences()) {
+        self.value = value
+    }
+
+    func load() -> SettingsPreferences { value }
+    func save(_ preferences: SettingsPreferences) throws { value = preferences }
+}
+
+@MainActor
+private final class TestLocationService: LocationServicing {
+    var authorizationStatus: PermissionAuthorization
+    var currentLocationRequestCount = 0
+
+    init(status: PermissionAuthorization) {
+        authorizationStatus = status
+    }
+
+    func requestCurrentLocation() async throws -> WeatherLocation {
+        currentLocationRequestCount += 1
+        throw TestSettingsError.permissionDenied
+    }
+
+    func resolve(city: String) async throws -> WeatherLocation {
+        try WeatherLocation(
+            key: "manual:test",
+            cityName: city,
+            latitude: 31.23,
+            longitude: 121.47
+        )
+    }
+}
+
+@MainActor
+private final class TestNotificationService: NotificationServicing {
+    var status: PermissionAuthorization
+    let grantsAccess: Bool
+    var requestCount = 0
+
+    init(status: PermissionAuthorization, grantsAccess: Bool) {
+        self.status = status
+        self.grantsAccess = grantsAccess
+    }
+
+    func authorizationStatus() async -> PermissionAuthorization { status }
+
+    func requestAuthorization() async throws -> Bool {
+        requestCount += 1
+        status = grantsAccess ? .authorized : .denied
+        return grantsAccess
+    }
+
+    func sendTestNotification() async throws {}
+}
+
+@MainActor
+private final class TestLaunchAtLoginService: LaunchAtLoginServicing {
+    var status: LaunchAtLoginStatus
+    var setValues: [Bool] = []
+
+    init(status: LaunchAtLoginStatus) {
+        self.status = status
+    }
+
+    func setEnabled(_ isEnabled: Bool) throws {
+        setValues.append(isEnabled)
+        status = isEnabled ? .enabled : .disabled
+    }
+}
+
+private enum TestSettingsError: LocalizedError {
+    case permissionDenied
+    var errorDescription: String? { "定位权限未开启，可继续使用手工城市。" }
 }

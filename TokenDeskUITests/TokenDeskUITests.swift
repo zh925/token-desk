@@ -45,5 +45,20 @@ final class TokenDeskUITests: XCTestCase {
 
         application.buttons["settings-button"].click()
         XCTAssertTrue(application.staticTexts["设置页面"].waitForExistence(timeout: 1))
+
+        for section in ["providers", "weather", "display", "notifications", "dataExport"] {
+            XCTAssertTrue(application.buttons["settings-section-\(section)"].exists)
+        }
+
+        application.buttons["settings-section-weather"].click()
+        XCTAssertTrue(application.textFields["manual-city-field"].exists)
+
+        application.buttons["settings-section-dataExport"].click()
+        XCTAssertTrue(application.buttons["export-history-button"].exists)
+
+        let attachment = XCTAttachment(screenshot: application.screenshot())
+        attachment.name = "TokenDeskSettings-1280x720"
+        attachment.lifetime = .keepAlways
+        add(attachment)
     }
 }
