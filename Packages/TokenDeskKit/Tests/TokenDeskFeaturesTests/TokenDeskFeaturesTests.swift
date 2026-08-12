@@ -1,7 +1,7 @@
 import SwiftUI
 import Testing
 import TokenDeskCore
-import TokenDeskFeatures
+@testable import TokenDeskFeatures
 
 @Test
 func featuresModuleNameIsStable() {
@@ -158,6 +158,7 @@ func deniedLocationKeepsManualCityFallbackAvailableAndPersistent() async {
 
     store.preferences.manualCity = "上海"
     await store.resolveManualCity()
+    store.savePlatformChanges()
 
     #expect(store.resolvedLocation?.cityName == "上海")
     #expect(preferences.value.manualCity == "上海")
@@ -191,6 +192,7 @@ func allowedNotificationPermissionPersistsAndRevocationRecovers() async {
     )
 
     await store.setAlertsEnabled(true)
+    store.savePlatformChanges()
     #expect(store.notificationAuthorization == .authorized)
     #expect(preferences.value.alertsEnabled)
 
@@ -219,6 +221,70 @@ func settingsStoreRestoresPreferencesAndTracksSystemLoginState() {
     store.setLaunchAtLogin(true)
     #expect(login.setValues == [true])
     #expect(store.launchAtLoginStatus == .enabled)
+}
+
+@Test @MainActor
+func platformDraftCancelAndSaveAreConsistentAcrossRestartAndDisplay() {
+    let saved = SettingsPreferences(manualCity: "北京", weatherRefreshMinutes: 15)
+    let preferences = TestPreferencesStore(value: saved)
+    let displays = TestDisplaySettingsService(selectedID: 1)
+    let store = SettingsStore(preferencesStore: preferences, displayService: displays)
+
+    store.preferences.manualCity = "深圳"
+    store.setWeatherRefreshMinutes(60)
+    store.selectedDisplayRuntimeID = 2
+    #expect(store.hasUnsavedPlatformChanges)
+
+    store.cancelPlatformChanges()
+    #expect(store.preferences == saved)
+    #expect(store.selectedDisplayRuntimeID == 1)
+    #expect(displays.selectedID == 1)
+
+    store.preferences.manualCity = "深圳"
+    store.setWeatherRefreshMinutes(60)
+    store.selectedDisplayRuntimeID = 2
+    store.savePlatformChanges()
+
+    #expect(preferences.value.manualCity == "深圳")
+    #expect(preferences.value.weatherRefreshMinutes == 60)
+    #expect(displays.selectedID == 2)
+    let restored = SettingsStore(preferencesStore: preferences, displayService: displays)
+    #expect(restored.preferences.manualCity == "深圳")
+    #expect(restored.selectedDisplayRuntimeID == 2)
+}
+
+@Test @MainActor
+func providerEditorCancelNeverPersistsCredentialAndAuthenticationFailureIsExplained() async throws {
+    let configuration = try providerConfiguration()
+    let manager = TestProviderManager(configurations: [configuration])
+    let tester = TestProviderConnectionTester(error: ConnectorError.authentication)
+    let store = SettingsStore(providerManager: manager, connectionTester: tester)
+    await store.refreshSystemState()
+
+    store.beginEditingProvider(configuration)
+    store.stageReplacementCredential("must-not-escape")
+    store.cancelProviderEditing()
+    #expect(manager.saveCount == 0)
+    #expect(store.providerDraft == nil)
+
+    await store.testConnection(accountID: configuration.accountID)
+    #expect(store.operationMessage == "认证失败：请替换凭据后重试。")
+}
+
+@Test @MainActor
+func providerSavePassesRedactedCredentialBoundaryAndReloadsConfiguration() async {
+    let manager = TestProviderManager()
+    let store = SettingsStore(providerManager: manager)
+    store.beginAddingProvider()
+    store.providerDraft?.accountDisplayName = "团队账户"
+    store.stageReplacementCredential("ephemeral-secret")
+
+    await store.saveProvider()
+
+    #expect(manager.saveCount == 1)
+    #expect(manager.receivedCredentialBytes == Data("ephemeral-secret".utf8))
+    #expect(store.providerConfigurations.count == 1)
+    #expect(store.providerDraft == nil)
 }
 
 @Test
@@ -347,6 +413,92 @@ private final class TestLaunchAtLoginService: LaunchAtLoginServicing {
         setValues.append(isEnabled)
         status = isEnabled ? .enabled : .disabled
     }
+}
+
+@MainActor
+private final class TestDisplaySettingsService: DisplaySettingsServicing {
+    var selectedID: UInt32?
+
+    init(selectedID: UInt32?) { self.selectedID = selectedID }
+
+    func availableTargets() -> [SettingsDisplayTarget] {
+        [
+            SettingsDisplayTarget(
+                id: 1,
+                name: "Main",
+                logicalWidth: 1_280,
+                logicalHeight: 720,
+                isSelected: selectedID == 1
+            ),
+            SettingsDisplayTarget(
+                id: 2,
+                name: "Wokyis M5",
+                logicalWidth: 1_280,
+                logicalHeight: 720,
+                isSelected: selectedID == 2
+            ),
+        ]
+    }
+
+    func selectDisplay(runtimeID: UInt32?) throws { selectedID = runtimeID }
+}
+
+private final class TestProviderManager: ProviderAccountManaging, @unchecked Sendable {
+    var values: [ProviderAccountConfiguration]
+    var saveCount = 0
+    var receivedCredentialBytes: Data?
+
+    init(configurations: [ProviderAccountConfiguration] = []) { values = configurations }
+
+    func configurations() async throws -> [ProviderAccountConfiguration] { values }
+
+    func save(_ draft: ProviderAccountDraft, replacingCredential: Credential?) async throws
+        -> ProviderAccountConfiguration
+    {
+        saveCount += 1
+        receivedCredentialBytes = replacingCredential?.withData { $0 }
+        let configuration = try providerConfiguration(
+            providerID: draft.providerID,
+            accountID: draft.accountID,
+            accountName: draft.accountDisplayName
+        )
+        values = [configuration]
+        return configuration
+    }
+
+    func setEnabled(_ isEnabled: Bool, accountID: AccountID) async throws {}
+    func delete(accountID: AccountID, history: ProviderHistoryDisposition) async throws {}
+}
+
+private struct TestProviderConnectionTester: ProviderConnectionTesting {
+    let error: ConnectorError?
+
+    func testConnection(for configuration: ProviderAccountConfiguration) async throws
+        -> ProviderConnectionTestResult
+    {
+        if let error { throw error }
+        return .connected
+    }
+}
+
+private func providerConfiguration(
+    providerID: ProviderID? = nil,
+    accountID: AccountID? = nil,
+    accountName: String = "组织账户"
+) throws -> ProviderAccountConfiguration {
+    ProviderAccountConfiguration(
+        providerID: try providerID ?? ProviderID(rawValue: "provider-test"),
+        accountID: try accountID ?? AccountID(rawValue: "account-test"),
+        providerType: try ProviderType(rawValue: "openai"),
+        providerDisplayName: "OpenAI",
+        accountDisplayName: accountName,
+        scope: .organization,
+        hierarchy: AccountHierarchy(organizationReference: "org-redacted"),
+        credentialReference: try CredentialReference(rawValue: "account-test"),
+        credentialStatus: .configured,
+        isEnabled: true,
+        refreshIntervalMinutes: 15
+    )
 }
 
 private enum TestSettingsError: LocalizedError {

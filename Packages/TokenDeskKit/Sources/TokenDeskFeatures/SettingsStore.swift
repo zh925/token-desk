@@ -2,7 +2,7 @@ import Foundation
 import Observation
 import TokenDeskCore
 
-/// Top-level sections in the single settings destination.
+/// Top-level sections in the product's single settings destination.
 public enum SettingsSection: String, CaseIterable, Hashable, Sendable {
     case providers
     case weather
@@ -10,7 +10,7 @@ public enum SettingsSection: String, CaseIterable, Hashable, Sendable {
     case notifications
     case dataExport
 
-    /// User-facing section title.
+    /// User-facing navigation title.
     public var title: String {
         switch self {
         case .providers: "Providers"
@@ -22,80 +22,183 @@ public enum SettingsSection: String, CaseIterable, Hashable, Sendable {
     }
 }
 
-/// Main-actor settings state that isolates SwiftUI from macOS framework types.
+/// Product-owned capability metadata shown before a credential is configured.
+struct ProviderSettingsOption: Identifiable, Equatable, Sendable {
+    let id: String
+    let title: String
+    let capabilities: [ProviderCapability]
+    let organizationCredentialHint: String
+
+    static let supported: [ProviderSettingsOption] = [
+        .init(
+            id: "openai", title: "OpenAI", capabilities: [.usage, .cost],
+            organizationCredentialHint: "组织用量需只读 Admin Key"
+        ),
+        .init(
+            id: "anthropic", title: "Anthropic", capabilities: [.usage, .cost],
+            organizationCredentialHint: "仅组织范围，需 Admin API Key"
+        ),
+        .init(
+            id: "deepseek", title: "DeepSeek",
+            capabilities: [.usage, .cost, .balance, .localEstimate],
+            organizationCredentialHint: "余额为官方数据；Token 可本地聚合"
+        ),
+        .init(
+            id: "kimi", title: "Kimi", capabilities: [.usage, .cost, .balance, .localEstimate],
+            organizationCredentialHint: "余额为官方数据；Token 可本地聚合"
+        ),
+        .init(
+            id: "openrouter", title: "OpenRouter", capabilities: [.balance],
+            organizationCredentialHint: "Credits 需只读管理密钥"
+        ),
+        .init(
+            id: "codex", title: "Codex", capabilities: [.plan, .usage],
+            organizationCredentialHint: "仅展示当前沙箱可获得能力"
+        ),
+        .init(
+            id: "glm", title: "智谱 GLM", capabilities: [.usage, .localEstimate],
+            organizationCredentialHint: "无公开历史接口时使用明确标识的本地聚合"
+        ),
+        .init(
+            id: "minimax", title: "MiniMax", capabilities: [.usage, .localEstimate],
+            organizationCredentialHint: "无公开历史接口时使用明确标识的本地聚合"
+        ),
+        .init(
+            id: "gemini", title: "Gemini", capabilities: [.usage, .localEstimate],
+            organizationCredentialHint: "依官方公开能力降级展示"
+        ),
+    ]
+}
+
+/// Coordinates non-secret settings drafts and injected platform or persistence boundaries.
 @MainActor
 @Observable
 public final class SettingsStore {
-    /// Section currently rendered inside the settings content area.
+    /// Section currently rendered in the settings content area.
     public var selectedSection: SettingsSection = .providers
-    /// Editable, non-sensitive preference snapshot.
-    public var preferences: SettingsPreferences
-    /// Current normalized Core Location authorization.
-    public private(set) var locationAuthorization: PermissionAuthorization
-    /// Current normalized UserNotifications authorization.
-    public private(set) var notificationAuthorization: PermissionAuthorization = .notDetermined
-    /// Current `SMAppService` registration state.
-    public private(set) var launchAtLoginStatus: LaunchAtLoginStatus
-    /// Most recent one-shot current location or manual-city resolution.
-    public private(set) var resolvedLocation: WeatherLocation?
-    /// Privacy-safe result or recovery guidance for the last user action.
-    public private(set) var operationMessage: String?
-    /// Whether one asynchronous platform operation is in progress.
-    public private(set) var isWorking = false
+    var preferences: SettingsPreferences
+    private(set) var providerConfigurations: [ProviderAccountConfiguration] = []
+    var providerDraft: ProviderAccountDraft?
+    private(set) var displayTargets: [SettingsDisplayTarget] = []
+    var selectedDisplayRuntimeID: UInt32?
+    private(set) var locationAuthorization: PermissionAuthorization
+    private(set) var notificationAuthorization: PermissionAuthorization = .notDetermined
+    private(set) var launchAtLoginStatus: LaunchAtLoginStatus
+    private(set) var resolvedLocation: WeatherLocation?
+    private(set) var operationMessage: String?
+    private(set) var isWorking = false
+
+    var hasUnsavedPlatformChanges: Bool {
+        preferences != persistedPreferences
+            || selectedDisplayRuntimeID != persistedDisplayRuntimeID
+    }
 
     private let preferencesStore: any SettingsPreferencesStoring
     private let locationService: any LocationServicing
     private let notificationService: any NotificationServicing
     private let launchAtLoginService: any LaunchAtLoginServicing
+    private let displayService: any DisplaySettingsServicing
     private let exportService: any HistoryExportServicing
+    private let providerManager: any ProviderAccountManaging
+    private let connectionTester: any ProviderConnectionTesting
+    private var persistedPreferences: SettingsPreferences
+    private var persistedDisplayRuntimeID: UInt32?
+    private var replacementCredential: Credential?
 
-    /// Creates a settings store with explicit production or test platform boundaries.
+    /// Creates the store with production services or safe unavailable defaults.
     public init(
         preferencesStore: (any SettingsPreferencesStoring)? = nil,
         locationService: (any LocationServicing)? = nil,
         notificationService: (any NotificationServicing)? = nil,
         launchAtLoginService: (any LaunchAtLoginServicing)? = nil,
-        exportService: (any HistoryExportServicing)? = nil
+        displayService: (any DisplaySettingsServicing)? = nil,
+        exportService: (any HistoryExportServicing)? = nil,
+        providerManager: (any ProviderAccountManaging)? = nil,
+        connectionTester: (any ProviderConnectionTesting)? = nil
     ) {
         let preferencesStore = preferencesStore ?? MemorySettingsPreferencesStore()
         let locationService = locationService ?? UnavailableLocationService()
         let notificationService = notificationService ?? UnavailableNotificationService()
         let launchAtLoginService = launchAtLoginService ?? UnavailableLaunchAtLoginService()
-        let exportService = exportService ?? CancelledExportService()
+        let displayService = displayService ?? UnavailableDisplaySettingsService()
         self.preferencesStore = preferencesStore
         self.locationService = locationService
         self.notificationService = notificationService
         self.launchAtLoginService = launchAtLoginService
-        self.exportService = exportService
-        preferences = preferencesStore.load()
+        self.displayService = displayService
+        self.exportService = exportService ?? CancelledExportService()
+        self.providerManager = providerManager ?? UnavailableProviderAccountManager()
+        self.connectionTester = connectionTester ?? UnavailableConnectionTester()
+        let loadedPreferences = preferencesStore.load()
+        preferences = loadedPreferences
+        persistedPreferences = loadedPreferences
         locationAuthorization = locationService.authorizationStatus
         launchAtLoginStatus = launchAtLoginService.status
+        let targets = displayService.availableTargets()
+        displayTargets = targets
+        let selectedID = targets.first(where: \.isSelected)?.id
+        selectedDisplayRuntimeID = selectedID
+        persistedDisplayRuntimeID = selectedID
     }
 
-    /// Refreshes permission and registration state without displaying a prompt.
-    public func refreshSystemState() async {
+    func refreshSystemState() async {
         locationAuthorization = locationService.authorizationStatus
         notificationAuthorization = await notificationService.authorizationStatus()
         launchAtLoginStatus = launchAtLoginService.status
+        displayTargets = displayService.availableTargets()
+        if !hasUnsavedPlatformChanges {
+            let selectedID = displayTargets.first(where: \.isSelected)?.id
+            selectedDisplayRuntimeID = selectedID
+            persistedDisplayRuntimeID = selectedID
+        }
         if preferences.alertsEnabled, notificationAuthorization == .denied {
             preferences.alertsEnabled = false
-            savePreferences(message: "通知权限已被撤销；其他功能不受影响。")
+            persistedPreferences.alertsEnabled = false
+            do {
+                try preferencesStore.save(persistedPreferences)
+                operationMessage = "通知权限已被撤销；告警已安全关闭，其他功能不受影响。"
+            } catch {
+                operationMessage = "通知权限已撤销，设置保存失败：\(error.localizedDescription)"
+            }
+        }
+        await reloadProviders()
+    }
+
+    func savePlatformChanges() {
+        do {
+            let previousDisplayID = persistedDisplayRuntimeID
+            try displayService.selectDisplay(runtimeID: selectedDisplayRuntimeID)
+            do {
+                try preferencesStore.save(preferences)
+            } catch {
+                try? displayService.selectDisplay(runtimeID: previousDisplayID)
+                throw error
+            }
+            persistedPreferences = preferences
+            persistedDisplayRuntimeID = selectedDisplayRuntimeID
+            displayTargets = displayService.availableTargets()
+            operationMessage = "设置已保存；重启后将恢复这些选择。"
+        } catch {
+            operationMessage = "设置未能保存：\(error.localizedDescription)"
         }
     }
 
-    /// Persists a manually selected city after it resolves successfully.
-    public func resolveManualCity() async {
+    func cancelPlatformChanges() {
+        preferences = persistedPreferences
+        selectedDisplayRuntimeID = persistedDisplayRuntimeID
+        operationMessage = "未保存的更改已取消。"
+    }
+
+    func resolveManualCity() async {
         await perform {
             let location = try await locationService.resolve(city: preferences.manualCity)
             resolvedLocation = location
             preferences.manualCity = location.cityName
-            try persist()
-            operationMessage = "已使用手工城市：\(location.cityName)"
+            operationMessage = "已验证手工城市：\(location.cityName)。请保存以在重启后恢复。"
         }
     }
 
-    /// Requests location only after the user presses the current-location button.
-    public func requestCurrentLocation() async {
+    func requestCurrentLocation() async {
         await perform {
             resolvedLocation = try await locationService.requestCurrentLocation()
             locationAuthorization = locationService.authorizationStatus
@@ -104,36 +207,31 @@ public final class SettingsStore {
         locationAuthorization = locationService.authorizationStatus
     }
 
-    /// Applies an alert toggle; enabling is the only path that requests authorization.
-    public func setAlertsEnabled(_ isEnabled: Bool) async {
+    func setAlertsEnabled(_ isEnabled: Bool) async {
         if !isEnabled {
             preferences.alertsEnabled = false
-            savePreferences(message: "本地通知已关闭。")
+            operationMessage = "本地通知将在保存后关闭。"
             return
         }
-
         await perform {
             let isAuthorized = try await notificationService.requestAuthorization()
             notificationAuthorization = await notificationService.authorizationStatus()
             preferences.alertsEnabled = isAuthorized
-            try persist()
             operationMessage =
                 isAuthorized
-                ? "本地通知已开启。"
+                ? "通知权限已允许；请保存以启用本地告警。"
                 : "通知权限未允许；其他功能仍可正常使用。"
         }
     }
 
-    /// Sends a generic local test notification when authorization is available.
-    public func sendTestNotification() async {
+    func sendTestNotification() async {
         await perform {
             try await notificationService.sendTestNotification()
             operationMessage = "测试通知已发送。"
         }
     }
 
-    /// Registers or unregisters launch-at-login and re-reads the system source of truth.
-    public func setLaunchAtLogin(_ isEnabled: Bool) {
+    func setLaunchAtLogin(_ isEnabled: Bool) {
         do {
             try launchAtLoginService.setEnabled(isEnabled)
             launchAtLoginStatus = launchAtLoginService.status
@@ -147,32 +245,115 @@ public final class SettingsStore {
         }
     }
 
-    /// Updates and persists a time-zone override selected from the settings form.
-    public func setTimeZoneOverride(_ identifier: String?) {
+    func setTimeZoneOverride(_ identifier: String?) {
         preferences.timeZoneOverrideIdentifier = identifier
-        savePreferences(message: "时区设置已保存。")
     }
 
-    /// Updates and persists the weather refresh interval.
-    public func setWeatherRefreshMinutes(_ minutes: Int) {
+    func setWeatherRefreshMinutes(_ minutes: Int) {
         preferences.weatherRefreshMinutes = minutes
-        savePreferences()
     }
 
-    /// Updates and persists hourly-weather visibility.
-    public func setShowsHourlyWeather(_ isEnabled: Bool) {
+    func setWeatherProvider(_ provider: String) {
+        preferences.weatherProvider = provider
+    }
+
+    func setShowsHourlyWeather(_ isEnabled: Bool) {
         preferences.showsHourlyWeather = isEnabled
-        savePreferences()
     }
 
-    /// Updates and persists the preferred export format.
-    public func setExportFormat(_ format: HistoryExportFormat) {
+    func setExportFormat(_ format: HistoryExportFormat) {
         preferences.exportFormat = format
-        savePreferences()
     }
 
-    /// Presents the system panel and exports a safe empty-history foundation payload.
-    public func exportHistoryFoundation() async {
+    func beginAddingProvider(option: ProviderSettingsOption = .supported[0]) {
+        providerDraft = ProviderAccountDraft(
+            providerType: option.id,
+            providerDisplayName: option.title
+        )
+        replacementCredential = nil
+        operationMessage = nil
+    }
+
+    func beginEditingProvider(_ configuration: ProviderAccountConfiguration) {
+        providerDraft = ProviderAccountDraft(configuration: configuration)
+        replacementCredential = nil
+        operationMessage = nil
+    }
+
+    func selectProviderType(_ rawValue: String) {
+        guard var draft = providerDraft,
+            let option = ProviderSettingsOption.supported.first(where: { $0.id == rawValue })
+        else { return }
+        draft.providerType = option.id
+        draft.providerDisplayName = option.title
+        providerDraft = draft
+    }
+
+    /// Receives ephemeral secure-field content without exposing it back through observable state.
+    func stageReplacementCredential(_ value: String) {
+        replacementCredential = value.isEmpty ? nil : try? Credential(utf8Value: value)
+    }
+
+    func cancelProviderEditing() {
+        replacementCredential = nil
+        providerDraft = nil
+        operationMessage = "Provider 更改已取消；凭据未写入 Keychain。"
+    }
+
+    func saveProvider() async {
+        guard let draft = providerDraft else { return }
+        await perform {
+            _ = try await providerManager.save(
+                draft,
+                replacingCredential: replacementCredential
+            )
+            replacementCredential = nil
+            providerDraft = nil
+            providerConfigurations = try await providerManager.configurations()
+            operationMessage = "Provider 与账户设置已保存；密钥不会回显。"
+        }
+    }
+
+    func setProviderEnabled(_ isEnabled: Bool, accountID: AccountID) async {
+        await perform {
+            try await providerManager.setEnabled(isEnabled, accountID: accountID)
+            providerConfigurations = try await providerManager.configurations()
+            operationMessage = isEnabled ? "Provider 已启用。" : "Provider 已停用，历史数据仍保留。"
+        }
+    }
+
+    func testConnection(accountID: AccountID) async {
+        guard
+            let configuration = providerConfigurations.first(where: {
+                $0.accountID == accountID
+            })
+        else { return }
+        await perform {
+            let result = try await connectionTester.testConnection(for: configuration)
+            operationMessage =
+                switch result {
+                case .connected: "连接成功；官方端点已返回可解释结果。"
+                case .credentialConfigured: "凭据可读取；该 Provider 将在首次同步时验证远端能力。"
+                case .unsupported(let reason): reason
+                }
+        }
+    }
+
+    func deleteProvider(
+        accountID: AccountID,
+        history: ProviderHistoryDisposition
+    ) async {
+        await perform {
+            try await providerManager.delete(accountID: accountID, history: history)
+            providerConfigurations = try await providerManager.configurations()
+            operationMessage =
+                history == .retain
+                ? "Provider 凭据已删除；账户已停用并保留历史。"
+                : "Provider、凭据与所选历史已删除。"
+        }
+    }
+
+    func exportHistoryFoundation() async {
         await perform {
             let format = preferences.exportFormat
             let result = try await exportService.export(
@@ -180,12 +361,19 @@ public final class SettingsStore {
                 format: format,
                 suggestedFilename: "token-desk-history"
             )
-            switch result {
-            case .cancelled:
-                operationMessage = "已取消导出；未写入任何文件。"
-            case .saved(let filename):
-                operationMessage = "已导出：\(filename)"
-            }
+            operationMessage =
+                switch result {
+                case .cancelled: "已取消导出；未写入任何文件。"
+                case .saved(let filename): "已导出：\(filename)"
+                }
+        }
+    }
+
+    private func reloadProviders() async {
+        do {
+            providerConfigurations = try await providerManager.configurations()
+        } catch {
+            operationMessage = "Provider 设置无法读取：\(stableMessage(for: error))"
         }
     }
 
@@ -196,28 +384,31 @@ public final class SettingsStore {
         do {
             try await operation()
         } catch {
-            operationMessage = error.localizedDescription
+            operationMessage = stableMessage(for: error)
         }
     }
 
-    private func savePreferences(message: String? = nil) {
-        do {
-            try persist()
-            operationMessage = message
-        } catch {
-            operationMessage = "设置未能保存：\(error.localizedDescription)"
+    private func stableMessage(for error: Error) -> String {
+        guard let connectorError = error as? ConnectorError else {
+            return error.localizedDescription
         }
-    }
-
-    private func persist() throws {
-        try preferencesStore.save(preferences)
+        return switch connectorError {
+        case .authentication: "认证失败：请替换凭据后重试。"
+        case .permissionDenied: "权限不足：请确认账户范围与只读管理权限。"
+        case .rateLimited(let retryAfter):
+            retryAfter == nil ? "Provider 限流，请稍后重试。" : "Provider 限流，请按服务端时间稍后重试。"
+        case .network: "网络不可用；已保存设置不会丢失。"
+        case .server(let statusCode):
+            statusCode.map { "Provider 服务异常（HTTP \($0)）。" } ?? "Provider 服务异常。"
+        case .decoding: "Provider 返回了无法识别的数据；未改动现有设置。"
+        case .unsupported: "该 Provider 不支持此连接测试能力。"
+        case .cancelled: "连接测试已取消。"
+        }
     }
 }
 
-/// Minimal safe export bytes used until the history-query/export pipeline is connected.
-public enum HistoryExportFoundation {
-    /// Returns an empty schema-only payload and never includes credentials or content fields.
-    public static func payload(format: HistoryExportFormat) -> Data {
+enum HistoryExportFoundation {
+    static func payload(format: HistoryExportFormat) -> Data {
         switch format {
         case .csv:
             let header =
@@ -261,14 +452,39 @@ private final class UnavailableLaunchAtLoginService: LaunchAtLoginServicing {
 }
 
 @MainActor
+private final class UnavailableDisplaySettingsService: DisplaySettingsServicing {
+    func availableTargets() -> [SettingsDisplayTarget] { [] }
+    func selectDisplay(runtimeID: UInt32?) throws {
+        guard runtimeID == nil else { throw SettingsFallbackError.unavailable }
+    }
+}
+
+@MainActor
 private final class CancelledExportService: HistoryExportServicing {
     func export(
         data: Data,
         format: HistoryExportFormat,
         suggestedFilename: String
-    ) async throws -> HistoryExportResult {
-        .cancelled
+    ) async throws -> HistoryExportResult { .cancelled }
+}
+
+private struct UnavailableProviderAccountManager: ProviderAccountManaging {
+    func configurations() async throws -> [ProviderAccountConfiguration] { [] }
+    func save(_ draft: ProviderAccountDraft, replacingCredential: Credential?) async throws
+        -> ProviderAccountConfiguration
+    { throw SettingsFallbackError.unavailable }
+    func setEnabled(_ isEnabled: Bool, accountID: AccountID) async throws {
+        throw SettingsFallbackError.unavailable
     }
+    func delete(accountID: AccountID, history: ProviderHistoryDisposition) async throws {
+        throw SettingsFallbackError.unavailable
+    }
+}
+
+private struct UnavailableConnectionTester: ProviderConnectionTesting {
+    func testConnection(for configuration: ProviderAccountConfiguration) async throws
+        -> ProviderConnectionTestResult
+    { throw SettingsFallbackError.unavailable }
 }
 
 private enum SettingsFallbackError: LocalizedError {

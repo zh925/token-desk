@@ -10,6 +10,28 @@ public enum TokenDeskDatabase {
         return pool
     }
 
+    /// Opens the sandbox Application Support database, creating only the app-owned directory.
+    public static func openApplicationDatabase(
+        fileManager: FileManager = .default,
+        appIdentifier: String = Bundle.main.bundleIdentifier ?? "app.tokendesk.TokenDesk"
+    ) throws -> DatabasePool {
+        let applicationSupport = try fileManager.url(
+            for: .applicationSupportDirectory,
+            in: .userDomainMask,
+            appropriateFor: nil,
+            create: true
+        )
+        let appDirectory = applicationSupport.appendingPathComponent(
+            appIdentifier,
+            isDirectory: true
+        )
+        try fileManager.createDirectory(
+            at: appDirectory,
+            withIntermediateDirectories: true
+        )
+        return try open(atPath: appDirectory.appendingPathComponent("TokenDesk.sqlite").path)
+    }
+
     /// The shared connection policy for production and migration tests.
     public static var configuration: Configuration {
         var configuration = Configuration()
