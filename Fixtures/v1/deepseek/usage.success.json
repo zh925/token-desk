@@ -1,0 +1,14 @@
+{
+  "id": "fixture-redacted",
+  "object": "chat.completion",
+  "created": 1768435230,
+  "model": "deepseek-chat-example",
+  "choices": [],
+  "usage": {
+    "prompt_tokens": 1200,
+    "completion_tokens": 340,
+    "prompt_cache_hit_tokens": 200,
+    "prompt_cache_miss_tokens": 1000,
+    "total_tokens": 1540
+  }
+}

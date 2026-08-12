@@ -14,12 +14,14 @@ func repositoryReturnsCachedUsageAndCostsWithoutPrecisionLoss() throws {
         input: 123,
         output: 456,
         cachedInput: 789,
-        cacheWrite: 12
+        cacheWrite: 12,
+        workspaceReference: "workspace"
     )
     let cost = CostSnapshot(
         providerID: fixture.providerID,
         accountID: fixture.account.id,
         projectReference: "project",
+        workspaceReference: "workspace",
         period: usage.period,
         money: Money(
             amount: Decimal(string: "0.123456789012345678")!,
@@ -60,6 +62,72 @@ func repositoryBatchWriteRollsBackWhenAnyBucketIsInvalid() throws {
         granularity: .minute
     )
     #expect(cached.isEmpty)
+}
+
+@Test
+func responseUsageAddsConcurrentCallsIntoOneLocalMinuteBucket() async throws {
+    let fixture = try RepositoryFixture()
+    let start = Date(timeIntervalSince1970: 1_800_000_030)
+    let usage = try fixture.usage(
+        start: start,
+        granularity: .minute,
+        input: 10,
+        output: 2,
+        cachedInput: 3,
+        sourceKind: .locallyAggregated
+    )
+
+    try await withThrowingTaskGroup(of: Void.self) { group in
+        for _ in 0..<20 {
+            group.addTask {
+                try fixture.repository.addLocallyAggregatedUsage([usage])
+            }
+        }
+        try await group.waitForAll()
+    }
+
+    let cached = try fixture.repository.cachedUsage(
+        for: fixture.account,
+        in: DateInterval(start: start.addingTimeInterval(-30), duration: 120),
+        granularity: .minute
+    )
+    let bucket = try #require(cached.first)
+    #expect(cached.count == 1)
+    #expect(bucket.tokens.input.rawValue == 200)
+    #expect(bucket.tokens.output.rawValue == 40)
+    #expect(bucket.tokens.cachedInput.rawValue == 60)
+    #expect(bucket.metadata.source.kind == .locallyAggregated)
+}
+
+@Test
+func repositoryPersistsOptionalCumulativeCreditDetailsSeparatelyFromAvailableBalance() throws {
+    let fixture = try RepositoryFixture()
+    let currency = try CurrencyCode(rawValue: "USD")
+    let observedAt = Date(timeIntervalSince1970: 1_800_000_000)
+    let balance = BalanceSnapshot(
+        providerID: fixture.providerID,
+        accountID: fixture.account.id,
+        available: Money(amount: Decimal(string: "21.25")!, currency: currency),
+        creditDetails: try CreditBalanceDetails(
+            totalCredited: Money(amount: Decimal(string: "25.50")!, currency: currency),
+            totalConsumed: Money(amount: Decimal(string: "4.25")!, currency: currency),
+            balanceCurrency: currency
+        ),
+        metadata: ObservationMetadata(
+            source: try DataSource(kind: .official, identifier: "credits_api"),
+            updatedAt: observedAt,
+            isStale: false
+        )
+    )
+
+    try fixture.repository.saveBalances([balance])
+
+    let values = try fixture.database.read { database in
+        try Row.fetchOne(database, sql: "SELECT * FROM balances")
+    }
+    #expect(values?["available_amount_decimal"] as String? == "21.25")
+    #expect(values?["total_credited_amount_decimal"] as String? == "25.5")
+    #expect(values?["total_consumed_amount_decimal"] as String? == "4.25")
 }
 
 @Test
@@ -283,7 +351,9 @@ private struct RepositoryFixture {
         input: Int64,
         output: Int64 = 0,
         cachedInput: Int64 = 0,
-        cacheWrite: Int64 = 0
+        cacheWrite: Int64 = 0,
+        sourceKind: DataSourceKind = .official,
+        workspaceReference: String? = nil
     ) throws -> TokenUsageBucket {
         let timeZone = try #require(TimeZone(secondsFromGMT: 0))
         let period = try UsagePeriod.containing(
@@ -296,6 +366,7 @@ private struct RepositoryFixture {
             providerID: providerID,
             accountID: account.id,
             projectReference: "project",
+            workspaceReference: workspaceReference,
             model: "model-a",
             granularity: granularity,
             period: period,
@@ -306,7 +377,7 @@ private struct RepositoryFixture {
                 cacheWrite: TokenCount(rawValue: cacheWrite)
             ),
             metadata: ObservationMetadata(
-                source: DataSource(kind: .official, identifier: "fixture_usage"),
+                source: DataSource(kind: sourceKind, identifier: "fixture_usage"),
                 updatedAt: start,
                 isStale: false
             )

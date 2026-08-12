@@ -99,6 +99,8 @@ public struct TokenUsageBucket: Codable, Equatable, Hashable, Sendable {
     public let accountID: AccountID
     /// The optional opaque project boundary.
     public let projectReference: String?
+    /// The optional opaque workspace boundary.
+    public let workspaceReference: String?
     /// The Provider model name.
     public let model: String
     /// The calendar bucket size.
@@ -115,6 +117,7 @@ public struct TokenUsageBucket: Codable, Equatable, Hashable, Sendable {
         providerID: ProviderID,
         accountID: AccountID,
         projectReference: String? = nil,
+        workspaceReference: String? = nil,
         model: String,
         granularity: UsageGranularity,
         period: UsagePeriod,
@@ -128,6 +131,7 @@ public struct TokenUsageBucket: Codable, Equatable, Hashable, Sendable {
         self.providerID = providerID
         self.accountID = accountID
         self.projectReference = projectReference
+        self.workspaceReference = workspaceReference
         self.model = trimmedModel
         self.granularity = granularity
         self.period = period
@@ -207,6 +211,8 @@ public struct CostSnapshot: Codable, Equatable, Hashable, Sendable {
     public let accountID: AccountID
     /// The optional opaque project boundary.
     public let projectReference: String?
+    /// The optional opaque workspace boundary.
+    public let workspaceReference: String?
     /// The period to which the charge or adjustment applies.
     public let period: UsagePeriod
     /// The unrounded amount and its currency.
@@ -219,6 +225,7 @@ public struct CostSnapshot: Codable, Equatable, Hashable, Sendable {
         providerID: ProviderID,
         accountID: AccountID,
         projectReference: String? = nil,
+        workspaceReference: String? = nil,
         period: UsagePeriod,
         money: Money,
         metadata: ObservationMetadata
@@ -226,6 +233,7 @@ public struct CostSnapshot: Codable, Equatable, Hashable, Sendable {
         self.providerID = providerID
         self.accountID = accountID
         self.projectReference = projectReference
+        self.workspaceReference = workspaceReference
         self.period = period
         self.money = money
         self.metadata = metadata
@@ -245,6 +253,8 @@ public struct BalanceSnapshot: Codable, Equatable, Hashable, Sendable {
     public let accountID: AccountID
     /// The known available amount and its currency.
     public let available: Money
+    /// Optional cumulative credit totals when the Provider exposes that distinct capability.
+    public let creditDetails: CreditBalanceDetails?
     /// The source and freshness of the balance.
     public let metadata: ObservationMetadata
 
@@ -253,11 +263,43 @@ public struct BalanceSnapshot: Codable, Equatable, Hashable, Sendable {
         providerID: ProviderID,
         accountID: AccountID,
         available: Money,
+        creditDetails: CreditBalanceDetails? = nil,
         metadata: ObservationMetadata
     ) {
         self.providerID = providerID
         self.accountID = accountID
         self.available = available
+        self.creditDetails = creditDetails
         self.metadata = metadata
+    }
+}
+
+/// Optional cumulative credit information kept separate from the currently available balance.
+public struct CreditBalanceDetails: Codable, Equatable, Hashable, Sendable {
+    /// Total credits purchased or otherwise funded for the account.
+    public let totalCredited: Money
+    /// Total credits consumed by the account.
+    public let totalConsumed: Money
+
+    /// Creates credit totals only when both values use the balance currency.
+    public init(
+        totalCredited: Money,
+        totalConsumed: Money,
+        balanceCurrency: CurrencyCode
+    ) throws {
+        guard totalCredited.currency == balanceCurrency else {
+            throw DomainModelError.currencyMismatch(
+                expected: balanceCurrency,
+                actual: totalCredited.currency
+            )
+        }
+        guard totalConsumed.currency == balanceCurrency else {
+            throw DomainModelError.currencyMismatch(
+                expected: balanceCurrency,
+                actual: totalConsumed.currency
+            )
+        }
+        self.totalCredited = totalCredited
+        self.totalConsumed = totalConsumed
     }
 }

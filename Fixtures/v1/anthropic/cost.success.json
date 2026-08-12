@@ -7,7 +7,8 @@
         {
           "currency": "USD",
           "amount": "123.45",
-          "cost_type": "tokens"
+          "cost_type": "tokens",
+          "workspace_id": "fixture-redacted"
         }
       ]
     }
