@@ -7,6 +7,9 @@ import TokenDeskDesign
 @MainActor
 @Observable
 public final class DashboardStore {
+    /// Cancellation-aware polling delay hook used by deterministic cadence tests.
+    public typealias PollingSleeper = @Sendable (Duration) async throws -> Void
+
     /// Render state for the overview page.
     public private(set) var overviewState: DashboardContentState<OverviewSnapshot> = .loading
     /// Render state for the plan page.
@@ -39,6 +42,15 @@ public final class DashboardStore {
     private var activeRefresh: Task<Void, Never>?
     private var activeRefreshID: UUID?
 
+    private struct Projection: Sendable {
+        let overviewState: DashboardContentState<OverviewSnapshot>
+        let plansState: DashboardContentState<[PlanWindowSnapshot]>
+        let tokenProviders: [TokenProviderSnapshot]
+        let tokenStates: [String: [TokenTimeRange: DashboardContentState<TokenDashboardSnapshot>]]
+        let tokenFallback: DashboardContentState<TokenDashboardSnapshot>?
+        let lastUpdatedAt: Date?
+    }
+
     /// Creates fixture-backed state when no service is supplied, or production loading state when
     /// a service is injected by the application composition root.
     public init(
@@ -61,8 +73,37 @@ public final class DashboardStore {
         await refresh(location: location)
     }
 
+    /// Polls active data in tiered lanes: usage each minute, money every five minutes, and weather
+    /// at its configured cadence. The loop sleeps with tolerance and ends promptly on cancellation.
+    public func runPolling(
+        location: WeatherLocation?,
+        weatherRefreshMinutes: Int,
+        sleeper: @escaping PollingSleeper = {
+            try await Task.sleep(for: $0, tolerance: .seconds(5))
+        }
+    ) async {
+        let weatherCadence = max(1, weatherRefreshMinutes)
+        var elapsedMinutes = 0
+        while !Task.isCancelled {
+            do {
+                try await sleeper(.seconds(60))
+            } catch {
+                return
+            }
+            guard !Task.isCancelled else { return }
+            elapsedMinutes += 1
+            var scope: DashboardRefreshScope = [.usage]
+            if elapsedMinutes.isMultiple(of: 5) { scope.insert(.money) }
+            if elapsedMinutes.isMultiple(of: weatherCadence) { scope.insert(.weather) }
+            await refresh(location: location, scope: scope)
+        }
+    }
+
     /// Cancels an older refresh, preserves cached cards, and publishes the new matrix atomically.
-    public func refresh(location: WeatherLocation?) async {
+    public func refresh(
+        location: WeatherLocation?,
+        scope: DashboardRefreshScope = .all
+    ) async {
         guard let dataProvider else { return }
         activeRefresh?.cancel()
         let refreshID = UUID()
@@ -70,7 +111,7 @@ public final class DashboardStore {
         let task = Task { [weak self] in
             guard let self else { return }
             isSynchronizing = true
-            let result = await dataProvider.refreshDashboardData(location: location)
+            let result = await dataProvider.refreshDashboardData(location: location, scope: scope)
             guard !Task.isCancelled else {
                 if activeRefreshID == refreshID { isSynchronizing = false }
                 return
@@ -79,10 +120,15 @@ public final class DashboardStore {
             do {
                 let data = try await dataProvider.loadCachedDashboardData()
                 cachedData = data
-                apply(data, issues: issues)
+                let projection = try await project(data, issues: issues)
+                guard !Task.isCancelled else { return }
+                publish(projection)
                 lastUpdatedAt = result.providerReport.completedAt
+            } catch is CancellationError {
+                if activeRefreshID == refreshID { isSynchronizing = false }
+                return
             } catch {
-                applyReadFailure(cached: cachedData)
+                await applyReadFailure(cached: cachedData)
             }
             isSynchronizing = false
         }
@@ -99,14 +145,38 @@ public final class DashboardStore {
         do {
             let data = try await dataProvider.loadCachedDashboardData()
             cachedData = data
-            apply(data, issues: [])
+            let projection = try await project(data, issues: [])
+            guard !Task.isCancelled else { return }
+            publish(projection)
+        } catch is CancellationError {
+            return
         } catch {
-            applyReadFailure(cached: nil)
+            await applyReadFailure(cached: nil)
         }
     }
 
-    private func apply(_ data: DashboardDataSnapshot, issues: [DashboardIssue]) {
+    private func project(
+        _ data: DashboardDataSnapshot,
+        issues: [DashboardIssue]
+    ) async throws -> Projection {
         let current = now()
+        // Projection aggregates up to 35 days for every Provider and range. It is intentionally
+        // detached from MainActor so chart preparation cannot consume a 16 ms render frame.
+        let task = Task.detached(priority: .userInitiated) {
+            try Task.checkCancellation()
+            let projection = Self.makeProjection(data, issues: issues, current: current)
+            try Task.checkCancellation()
+            return projection
+        }
+        defer { task.cancel() }
+        return try await task.value
+    }
+
+    nonisolated private static func makeProjection(
+        _ data: DashboardDataSnapshot,
+        issues: [DashboardIssue],
+        current: Date
+    ) -> Projection {
         let enabled = data.configurations.filter(\.isEnabled)
         let accounts = enabled.compactMap { try? $0.accountReference }
         let names = Dictionary(
@@ -199,20 +269,14 @@ public final class DashboardStore {
             tokenStates[providerID.rawValue] = rangeStates
         }
 
-        if tokenProviders.isEmpty {
-            tokensStore.applyProduction(
-                providers: [],
-                states: [:],
-                fallback: .empty(
-                    title: "尚未配置 Provider",
-                    detail: "请通过右上角唯一设置入口添加账户。"
-                )
-            )
-        } else {
-            tokensStore.applyProduction(providers: tokenProviders, states: tokenStates)
-        }
+        let tokenFallback: DashboardContentState<TokenDashboardSnapshot>? =
+            tokenProviders.isEmpty
+            ? .empty(
+                title: "尚未配置 Provider",
+                detail: "请通过右上角唯一设置入口添加账户。"
+            ) : nil
 
-        plansState = contentState(
+        let plansState = contentState(
             value: plans,
             hasData: !plans.isEmpty,
             issues: namedIssues.filter { $0.id != "weather" },
@@ -235,7 +299,7 @@ public final class DashboardStore {
             || providerIDs.contains {
                 hasData(for: $0, in: data)
             }
-        overviewState = contentState(
+        let overviewState = contentState(
             value: overview,
             hasData: overviewHasData,
             issues: namedIssues,
@@ -244,23 +308,47 @@ public final class DashboardStore {
             emptyDetail: "本地缓存为空；配置 Provider 或天气位置后即可同步。",
             now: current
         )
-        lastUpdatedAt = overviewMetadata.map(\.updatedAt).max()
+        return Projection(
+            overviewState: overviewState,
+            plansState: plansState,
+            tokenProviders: tokenProviders,
+            tokenStates: tokenStates,
+            tokenFallback: tokenFallback,
+            lastUpdatedAt: overviewMetadata.map(\.updatedAt).max()
+        )
     }
 
-    private func applyReadFailure(cached: DashboardDataSnapshot?) {
+    private func publish(_ projection: Projection) {
+        overviewState = projection.overviewState
+        plansState = projection.plansState
+        tokensStore.applyProduction(
+            providers: projection.tokenProviders,
+            states: projection.tokenStates,
+            fallback: projection.tokenFallback
+        )
+        lastUpdatedAt = projection.lastUpdatedAt
+    }
+
+    private func applyReadFailure(cached: DashboardDataSnapshot?) async {
         let title = "本地数据不可用"
         let detail = "数据库读取失败；不会用演示数据替代生产数据。"
         if let cached {
-            apply(
-                cached,
-                issues: [
-                    DashboardIssue(
-                        id: "local-database",
-                        providerName: "本地缓存",
-                        kind: .persistence,
-                        message: detail
-                    )
-                ])
+            do {
+                let projection = try await project(
+                    cached,
+                    issues: [
+                        DashboardIssue(
+                            id: "local-database",
+                            providerName: "本地缓存",
+                            kind: .persistence,
+                            message: detail
+                        )
+                    ]
+                )
+                publish(projection)
+            } catch {
+                return
+            }
         } else {
             overviewState = .failed(title: title, detail: detail, cached: nil)
             plansState = .failed(title: title, detail: detail, cached: nil)
@@ -272,7 +360,7 @@ public final class DashboardStore {
         }
     }
 
-    private func contentState<Value: Equatable & Sendable>(
+    nonisolated private static func contentState<Value: Equatable & Sendable>(
         value: Value,
         hasData: Bool,
         issues: [DashboardIssue],
@@ -297,7 +385,7 @@ public final class DashboardStore {
         return .loaded(value)
     }
 
-    private func planSnapshot(
+    nonisolated private static func planSnapshot(
         _ plan: PlanWindow,
         names: [ProviderID: String]
     ) -> PlanWindowSnapshot {
@@ -322,7 +410,7 @@ public final class DashboardStore {
         )
     }
 
-    private func tokenSnapshot(
+    nonisolated private static func tokenSnapshot(
         _ aggregate: TokenAggregation,
         providerName: String,
         range: TokenTimeRange
@@ -357,7 +445,9 @@ public final class DashboardStore {
         )
     }
 
-    private func weatherSnapshot(_ weather: TokenDeskCore.WeatherSnapshot) -> WeatherSnapshot {
+    nonisolated private static func weatherSnapshot(
+        _ weather: TokenDeskCore.WeatherSnapshot
+    ) -> WeatherSnapshot {
         WeatherSnapshot(
             city: weather.location.cityName,
             temperature: decimalInteger(weather.temperatureCelsius),
@@ -376,7 +466,7 @@ public final class DashboardStore {
         )
     }
 
-    private func providerStatus(
+    nonisolated private static func providerStatus(
         providerID: ProviderID,
         data: DashboardDataSnapshot,
         issues: [DashboardIssue],
@@ -393,13 +483,19 @@ public final class DashboardStore {
         return .connected
     }
 
-    private func hasData(for providerID: ProviderID, in data: DashboardDataSnapshot) -> Bool {
+    nonisolated private static func hasData(
+        for providerID: ProviderID,
+        in data: DashboardDataSnapshot
+    ) -> Bool {
         data.usage.contains { $0.providerID == providerID }
             || data.costs.contains { $0.providerID == providerID }
             || data.balances.contains { $0.providerID == providerID }
     }
 
-    private func metadata(for providerID: ProviderID, in data: DashboardDataSnapshot)
+    nonisolated private static func metadata(
+        for providerID: ProviderID,
+        in data: DashboardDataSnapshot
+    )
         -> [ObservationMetadata]
     {
         data.usage.filter { $0.providerID == providerID }.map(\.metadata)
@@ -407,12 +503,16 @@ public final class DashboardStore {
             + data.balances.filter { $0.providerID == providerID }.map(\.metadata)
     }
 
-    private func metadata(in data: DashboardDataSnapshot) -> [ObservationMetadata] {
+    nonisolated private static func metadata(
+        in data: DashboardDataSnapshot
+    ) -> [ObservationMetadata] {
         data.plans.map(\.metadata) + data.usage.map(\.metadata) + data.costs.map(\.metadata)
             + data.balances.map(\.metadata) + [data.weather?.metadata].compactMap { $0 }
     }
 
-    private static func issues(from result: DashboardRefreshResult) -> [DashboardIssue] {
+    nonisolated private static func issues(
+        from result: DashboardRefreshResult
+    ) -> [DashboardIssue] {
         var issues = result.providerReport.providers.compactMap { provider -> DashboardIssue? in
             switch provider.status {
             case .succeeded:
@@ -443,7 +543,11 @@ public final class DashboardStore {
         return issues
     }
 
-    private static func issue(id: String, name: String, error: ConnectorError) -> DashboardIssue {
+    nonisolated private static func issue(
+        id: String,
+        name: String,
+        error: ConnectorError
+    ) -> DashboardIssue {
         let kind: DashboardIssue.Kind
         let message: String
         switch error {

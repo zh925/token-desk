@@ -49,11 +49,48 @@ public struct DashboardRefreshResult: Equatable, Sendable {
     }
 }
 
+/// Independent refresh lanes used to avoid polling slow-changing data at the Token cadence.
+public struct DashboardRefreshScope: OptionSet, Equatable, Sendable {
+    /// Bit field backing the selected refresh lanes.
+    public let rawValue: UInt8
+
+    /// Creates a scope from its stable bit field.
+    public init(rawValue: UInt8) {
+        self.rawValue = rawValue
+    }
+
+    /// Plan windows and Token usage, refreshed once per minute while the app is active.
+    public static let usage = Self(rawValue: 1 << 0)
+    /// Costs and balances, refreshed every five minutes while the app is active.
+    public static let money = Self(rawValue: 1 << 1)
+    /// Weather, refreshed at the user-configured cadence (15 minutes by default).
+    public static let weather = Self(rawValue: 1 << 2)
+    /// Every Provider-backed lane, excluding weather.
+    public static let providers: Self = [.usage, .money]
+    /// Every supported refresh lane.
+    public static let all: Self = [.providers, .weather]
+
+    /// Connector capabilities due for this refresh without conflating their data domains.
+    public var providerCapabilities: Set<ProviderCapability> {
+        var capabilities: Set<ProviderCapability> = []
+        if contains(.usage) {
+            capabilities.formUnion([.plan, .usage, .localEstimate])
+        }
+        if contains(.money) {
+            capabilities.formUnion([.cost, .balance])
+        }
+        return capabilities
+    }
+}
+
 /// Production data boundary used by feature stores.
 public protocol DashboardDataProviding: Sendable {
     /// Reads local cache without waiting for network access.
     func loadCachedDashboardData() async throws -> DashboardDataSnapshot
 
-    /// Refreshes every enabled Provider independently and optionally refreshes weather.
-    func refreshDashboardData(location: WeatherLocation?) async -> DashboardRefreshResult
+    /// Refreshes only the due lanes, keeping high- and low-frequency sources independent.
+    func refreshDashboardData(
+        location: WeatherLocation?,
+        scope: DashboardRefreshScope
+    ) async -> DashboardRefreshResult
 }
