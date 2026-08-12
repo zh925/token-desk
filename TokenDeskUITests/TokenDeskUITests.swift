@@ -2,6 +2,11 @@ import XCTest
 
 @MainActor
 final class TokenDeskUITests: XCTestCase {
+    override func setUp() {
+        super.setUp()
+        continueAfterFailure = false
+    }
+
     func testColdLaunchPerformance() {
         let options = XCTMeasureOptions()
         options.iterationCount = 5

@@ -22,6 +22,10 @@ xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
   -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO \
   -only-testing:TokenDeskTests test
 xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
+  -configuration Release -destination 'platform=macOS' ENABLE_TESTABILITY=YES \
+  -resultBundlePath TD060-ui.xcresult \
+  -only-testing:TokenDeskUITests/TokenDeskAcceptanceUITests test
+xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
   -configuration Debug -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
 xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
   -configuration Release -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO build
@@ -41,3 +45,18 @@ this baseline does not claim those runtime capabilities are already validated.
 
 Unsigned CI builds prove compilation and settings consistency but do not replace signed Release,
 Archive, Mac App Store, or physical Wokyis M5 verification. TD-064 owns that evidence.
+
+## UI acceptance evidence
+
+`TokenDeskAcceptanceUITests` launches a sandboxed Release build in a deterministic App Review
+mode. It fixes the clock, isolates preferences, renders a borderless 1280×720 canvas, exercises
+the four primary pages and settings sections, audits actionable controls and hit regions, checks
+VoiceOver labels and chart summaries, and verifies the Reduce Motion path. Screenshot baselines
+live in `TokenDeskUITests/Baselines`; the comparison normalizes images to 160×90 luminance and
+fails above either 3.5% mean delta or 20% materially changed pixels.
+
+On a UI failure, CI retains the `.xcresult` for 14 days. Export its screenshots with
+`xcrun xcresulttool export attachments --path TD060-ui.xcresult --output-path attachments`.
+Baseline changes require visual review of all four `TokenDesk-*-current` PNGs and a clean rerun.
+Automated results do not replace manual VoiceOver listening, signed Release validation, or the
+Wokyis M5 viewing-distance check; those remain part of TD-064/TD-065 release acceptance.

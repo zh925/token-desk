@@ -53,6 +53,21 @@ jobs:
           -configuration Debug -destination 'platform=macOS'
           -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO
           -only-testing:TokenDeskTests test
+      - name: Run Release UI acceptance tests
+        run: >-
+          xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
+          -configuration Release -destination 'platform=macOS'
+          -disableAutomaticPackageResolution ENABLE_TESTABILITY=YES
+          -resultBundlePath TD060-ui.xcresult
+          -only-testing:TokenDeskUITests/TokenDeskAcceptanceUITests test
+      - name: Preserve UI failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: token-desk-ui-failure-${{ github.run_id }}
+          path: TD060-ui.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Build Debug app
         run: >-
           xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
