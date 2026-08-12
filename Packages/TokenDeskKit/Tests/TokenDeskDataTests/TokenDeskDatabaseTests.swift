@@ -20,9 +20,45 @@ func emptyDatabaseMigratesToLatestSchema() throws {
         migrations == [
             TokenDeskDatabaseMigrator.bootstrapIdentifier,
             TokenDeskDatabaseMigrator.initialSchemaIdentifier,
+            TokenDeskDatabaseMigrator.pricingProvenanceIdentifier,
             TokenDeskDatabaseMigrator.latestIdentifier,
         ]
     )
+}
+
+@Test
+func pricingSchemaMigratesProviderDimensionsWithoutLosingUsage() throws {
+    let database = try DatabaseQueue(configuration: TokenDeskDatabase.configuration)
+    try TokenDeskDatabaseMigrator.migrate(
+        database,
+        upTo: TokenDeskDatabaseMigrator.pricingProvenanceIdentifier
+    )
+    let timestamp = "2026-08-12T00:00:00Z"
+    try database.write { database in
+        try insertProviderAndAccount(in: database, timestamp: timestamp)
+        try database.execute(
+            sql: """
+                INSERT INTO usage_buckets (
+                    provider_id, account_id, model, granularity, bucket_start_at,
+                    bucket_end_at, time_zone_identifier, input_tokens, output_tokens,
+                    source, source_kind, updated_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+            arguments: [
+                "provider-1", "account-1", "model", "minute", timestamp,
+                "2026-08-12T00:01:00Z", "UTC", 12, 4, "response_usage",
+                "locallyAggregated", timestamp,
+            ]
+        )
+    }
+
+    try TokenDeskDatabaseMigrator.migrate(database)
+
+    let migrated = try database.read { database in
+        try Row.fetchOne(database, sql: "SELECT * FROM usage_buckets")
+    }
+    #expect(migrated?["input_tokens"] as Int? == 12)
+    #expect(migrated?["workspace_reference"] as String? == "")
 }
 
 @Test
@@ -177,7 +213,11 @@ func monetaryColumnsUseTextStorageInsteadOfReal() throws {
     let database = try migratedDatabase()
     let expectedColumns: [String: Set<String>] = [
         "cost_buckets": ["amount_decimal"],
-        "balances": ["available_amount_decimal"],
+        "balances": [
+            "available_amount_decimal",
+            "total_credited_amount_decimal",
+            "total_consumed_amount_decimal",
+        ],
         "pricing_rules": [
             "input_per_million_decimal",
             "output_per_million_decimal",

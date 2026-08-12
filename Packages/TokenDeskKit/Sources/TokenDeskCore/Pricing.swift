@@ -193,6 +193,7 @@ public struct CostCalculator: Sendable {
             providerID: usage.providerID,
             accountID: usage.accountID,
             projectReference: usage.projectReference,
+            workspaceReference: usage.workspaceReference,
             period: usage.period,
             money: Money(amount: amount, currency: rule.currency),
             metadata: ObservationMetadata(source: source, updatedAt: calculatedAt, isStale: false)

@@ -224,7 +224,7 @@ final class OpenMeteoConnectorContractTests: XCTestCase {
     }
 }
 
-private actor StubHTTPClient: ConnectorHTTPClient {
+actor StubHTTPClient: ConnectorHTTPClient {
     private var responses: [ConnectorHTTPResponse]
     private let delay: Duration?
     private(set) var requests: [URLRequest] = []
@@ -247,7 +247,7 @@ private actor StubHTTPClient: ConnectorHTTPClient {
     }
 }
 
-private final class StaticCredentialStore: CredentialStore, @unchecked Sendable {
+final class StaticCredentialStore: CredentialStore, @unchecked Sendable {
     private let reference: CredentialReference
     private let credential: Credential
 
@@ -275,7 +275,7 @@ private final class StaticCredentialStore: CredentialStore, @unchecked Sendable 
     }
 }
 
-private func fixtureData(_ path: String) throws -> Data {
+func fixtureData(_ path: String) throws -> Data {
     var root = URL(fileURLWithPath: #filePath)
     while root.lastPathComponent != "token-desk", root.pathComponents.count > 1 {
         root.deleteLastPathComponent()

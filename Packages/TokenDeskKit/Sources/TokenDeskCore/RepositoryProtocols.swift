@@ -25,6 +25,23 @@ public protocol UsageRepository: ProviderSyncRepository {
     func performRetention(now: Date) throws -> RetentionReport
 }
 
+/// Atomic persistence used when a Provider exposes usage only on individual API responses.
+///
+/// Implementations add token quantities to an existing local bucket instead of replacing it. The
+/// caller must invoke ``addLocallyAggregatedUsage(_:)`` exactly once for each successful response;
+/// remote request identifiers are deliberately not retained for deduplication or diagnostics.
+public protocol LocallyAggregatedUsageRepository: Sendable {
+    /// Atomically adds response usage to matching local minute buckets.
+    func addLocallyAggregatedUsage(_ usage: [TokenUsageBucket]) throws
+
+    /// Reads locally retained usage for cost estimation and dashboard synchronization.
+    func cachedUsage(
+        for account: AccountReference,
+        in interval: DateInterval,
+        granularity: UsageGranularity
+    ) throws -> [TokenUsageBucket]
+}
+
 /// Counts produced by one atomic retention pass.
 public struct RetentionReport: Equatable, Sendable {
     /// Minute rows consumed into hourly buckets.

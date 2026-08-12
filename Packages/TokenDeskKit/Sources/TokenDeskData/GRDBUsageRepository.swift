@@ -9,7 +9,9 @@ public enum UsageRepositoryError: Error, Equatable, Sendable {
 }
 
 /// A cache-first GRDB implementation with transactional upserts and retention aggregation.
-public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
+public final class GRDBUsageRepository: UsageRepository, LocallyAggregatedUsageRepository,
+    @unchecked Sendable
+{
     private let writer: any DatabaseWriter
 
     /// Creates a repository over a GRDB writer configured by ``TokenDeskDatabase``.
@@ -69,6 +71,18 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
         }
     }
 
+    /// Atomically adds response-level usage without replacing other responses in the same minute.
+    public func addLocallyAggregatedUsage(_ usage: [TokenUsageBucket]) throws {
+        try writer.write { database in
+            for bucket in usage {
+                guard bucket.metadata.source.kind == .locallyAggregated else {
+                    throw UsageRepositoryError.invalidStoredValue(field: "sourceKind")
+                }
+                try Self.upsertUsage(bucket, mergeAggregatedValues: true, in: database)
+            }
+        }
+    }
+
     /// Atomically upserts official or estimated monetary snapshots.
     public func saveCosts(_ costs: [CostSnapshot]) throws {
         try writer.write { database in
@@ -76,13 +90,13 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                 try database.execute(
                     sql: """
                         INSERT INTO cost_buckets (
-                            provider_id, account_id, project_reference, bucket_start_at,
-                            bucket_end_at, time_zone_identifier, amount_decimal, currency,
-                            is_estimated, source, source_kind, updated_at, is_stale
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            provider_id, account_id, project_reference, workspace_reference,
+                            bucket_start_at, bucket_end_at, time_zone_identifier, amount_decimal,
+                            currency, is_estimated, source, source_kind, updated_at, is_stale
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(
-                            provider_id, account_id, project_reference, bucket_start_at,
-                            bucket_end_at, currency, source
+                            provider_id, account_id, project_reference, workspace_reference,
+                            bucket_start_at, bucket_end_at, currency, source
                         ) DO UPDATE SET
                             time_zone_identifier = excluded.time_zone_identifier,
                             amount_decimal = excluded.amount_decimal,
@@ -95,6 +109,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                         cost.providerID.rawValue,
                         cost.accountID.rawValue,
                         cost.projectReference ?? "",
+                        cost.workspaceReference ?? "",
                         PersistenceCodec.date(cost.period.interval.start),
                         PersistenceCodec.date(cost.period.interval.end),
                         cost.period.timeZoneIdentifier,
@@ -119,11 +134,14 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                     sql: """
                         INSERT INTO balances (
                             provider_id, account_id, available_amount_decimal, currency,
+                            total_credited_amount_decimal, total_consumed_amount_decimal,
                             observed_at, source, source_kind, updated_at, is_stale
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT(provider_id, account_id, currency, observed_at, source)
                         DO UPDATE SET
                             available_amount_decimal = excluded.available_amount_decimal,
+                            total_credited_amount_decimal = excluded.total_credited_amount_decimal,
+                            total_consumed_amount_decimal = excluded.total_consumed_amount_decimal,
                             source_kind = excluded.source_kind,
                             updated_at = excluded.updated_at,
                             is_stale = excluded.is_stale
@@ -133,6 +151,12 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                         balance.accountID.rawValue,
                         PersistenceCodec.decimal(balance.available.amount),
                         balance.available.currency.rawValue,
+                        balance.creditDetails.map {
+                            PersistenceCodec.decimal($0.totalCredited.amount)
+                        },
+                        balance.creditDetails.map {
+                            PersistenceCodec.decimal($0.totalConsumed.amount)
+                        },
                         PersistenceCodec.date(balance.metadata.updatedAt),
                         balance.metadata.source.identifier,
                         balance.metadata.source.kind.rawValue,
@@ -158,7 +182,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                     SELECT * FROM usage_buckets
                     WHERE provider_id = ? AND account_id = ? AND granularity = ?
                         AND bucket_start_at < ? AND bucket_end_at > ?
-                    ORDER BY bucket_start_at, model, project_reference
+                    ORDER BY bucket_start_at, model, project_reference, workspace_reference
                     """,
                 arguments: [
                     account.providerID.rawValue,
@@ -293,14 +317,14 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
         try database.execute(
             sql: """
                 INSERT INTO usage_buckets (
-                    provider_id, account_id, project_reference, model, granularity,
-                    bucket_start_at, bucket_end_at, time_zone_identifier, input_tokens,
-                    output_tokens, cached_input_tokens, cache_write_tokens, source,
-                    source_kind, updated_at, is_stale
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    provider_id, account_id, project_reference, workspace_reference, model,
+                    granularity, bucket_start_at, bucket_end_at, time_zone_identifier,
+                    input_tokens, output_tokens, cached_input_tokens, cache_write_tokens,
+                    source, source_kind, updated_at, is_stale
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(
-                    provider_id, account_id, project_reference, model, granularity,
-                    bucket_start_at
+                    provider_id, account_id, project_reference, workspace_reference,
+                    model, granularity, bucket_start_at
                 ) DO UPDATE SET
                     bucket_end_at = excluded.bucket_end_at,
                     time_zone_identifier = excluded.time_zone_identifier,
@@ -316,6 +340,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                 bucket.providerID.rawValue,
                 bucket.accountID.rawValue,
                 bucket.projectReference ?? "",
+                bucket.workspaceReference ?? "",
                 bucket.model,
                 bucket.granularity.rawValue,
                 PersistenceCodec.date(bucket.period.interval.start),
@@ -365,6 +390,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
         let providerID: ProviderID
         let accountID: AccountID
         let projectReference: String?
+        let workspaceReference: String?
         let model: String
         let period: UsagePeriod
     }
@@ -389,6 +415,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                 providerID: bucket.providerID,
                 accountID: bucket.accountID,
                 projectReference: bucket.projectReference,
+                workspaceReference: bucket.workspaceReference,
                 model: bucket.model,
                 period: period
             )
@@ -409,6 +436,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
                 providerID: key.providerID,
                 accountID: key.accountID,
                 projectReference: key.projectReference,
+                workspaceReference: key.workspaceReference,
                 model: key.model,
                 granularity: granularity,
                 period: key.period,
@@ -428,10 +456,12 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
             throw UsageRepositoryError.invalidStoredValue(field: "sourceKind")
         }
         let projectReference: String = row["project_reference"]
+        let workspaceReference: String = row["workspace_reference"]
         return try TokenUsageBucket(
             providerID: ProviderID(rawValue: row["provider_id"]),
             accountID: AccountID(rawValue: row["account_id"]),
             projectReference: projectReference.isEmpty ? nil : projectReference,
+            workspaceReference: workspaceReference.isEmpty ? nil : workspaceReference,
             model: row["model"],
             granularity: granularity,
             period: UsagePeriod(
@@ -461,6 +491,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
             throw UsageRepositoryError.invalidStoredValue(field: "sourceKind")
         }
         let projectReference: String = row["project_reference"]
+        let workspaceReference: String = row["workspace_reference"]
         guard let amount = PersistenceCodec.decimal(row["amount_decimal"] as String) else {
             throw UsageRepositoryError.invalidStoredValue(field: "amountDecimal")
         }
@@ -468,6 +499,7 @@ public final class GRDBUsageRepository: UsageRepository, @unchecked Sendable {
             providerID: ProviderID(rawValue: row["provider_id"]),
             accountID: AccountID(rawValue: row["account_id"]),
             projectReference: projectReference.isEmpty ? nil : projectReference,
+            workspaceReference: workspaceReference.isEmpty ? nil : workspaceReference,
             period: UsagePeriod(
                 interval: DateInterval(
                     start: try PersistenceCodec.date(row["bucket_start_at"]),

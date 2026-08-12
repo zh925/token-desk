@@ -1,0 +1,23 @@
+{
+  "data": [
+    {
+      "starting_at": "2026-01-15T00:00:00Z",
+      "ending_at": "2026-01-16T00:00:00Z",
+      "results": [
+        {
+          "uncached_input_tokens": 900,
+          "cache_read_input_tokens": 200,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 75,
+            "ephemeral_1h_input_tokens": 25
+          },
+          "output_tokens": 340,
+          "model": "claude-sonnet-example",
+          "workspace_id": "fixture-redacted"
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "next_page": null
+}

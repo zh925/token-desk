@@ -1,0 +1,13 @@
+{
+  "id": "fixture-redacted",
+  "object": "chat.completion",
+  "created": 1768435230,
+  "model": "kimi-example",
+  "choices": [],
+  "usage": {
+    "prompt_tokens": 1200,
+    "completion_tokens": 340,
+    "cached_tokens": 200,
+    "total_tokens": 1540
+  }
+}

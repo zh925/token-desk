@@ -27,7 +27,9 @@ public enum TokenDeskDatabaseMigrator {
     /// The first application schema described by PRD section 20.
     public static let initialSchemaIdentifier = "v001_initialSchema"
     /// Adds complete provenance to versioned pricing rules.
-    public static let latestIdentifier = "v002_pricingRuleProvenance"
+    public static let pricingProvenanceIdentifier = "v002_pricingRuleProvenance"
+    /// Preserves Provider workspace dimensions and cumulative credit details.
+    public static let latestIdentifier = "v003_providerDimensions"
 
     /// Runs every pending migration in registration order.
     public static func migrate(_ writer: any DatabaseWriter) throws {
@@ -58,13 +60,24 @@ public enum TokenDeskDatabaseMigrator {
             try createInitialSchema(in: database)
             try recordMigration(initialSchemaIdentifier, in: database)
         }
-        migrator.registerMigration(latestIdentifier) { database in
+        migrator.registerMigration(pricingProvenanceIdentifier) { database in
             try database.execute(
                 sql: """
                     ALTER TABLE pricing_rules
                     ADD COLUMN source_kind TEXT NOT NULL DEFAULT 'official'
                     CHECK (source_kind IN ('official', 'locallyAggregated', 'estimated', 'demonstration'))
                     """
+            )
+            try recordMigration(pricingProvenanceIdentifier, in: database)
+        }
+        migrator.registerMigration(latestIdentifier) { database in
+            try migrateUsageDimensions(in: database)
+            try migrateCostDimensions(in: database)
+            try database.execute(
+                sql: "ALTER TABLE balances ADD COLUMN total_credited_amount_decimal TEXT"
+            )
+            try database.execute(
+                sql: "ALTER TABLE balances ADD COLUMN total_consumed_amount_decimal TEXT"
             )
             try recordMigration(latestIdentifier, in: database)
         }
@@ -95,6 +108,129 @@ public enum TokenDeskDatabaseMigrator {
         try createAlertEvents(in: database)
         try createExportJobs(in: database)
         try createAppPreferences(in: database)
+    }
+
+    private static func migrateUsageDimensions(in database: Database) throws {
+        try database.execute(sql: "ALTER TABLE usage_buckets RENAME TO usage_buckets_v002")
+        try database.execute(
+            sql: """
+                CREATE TABLE usage_buckets (
+                    id INTEGER PRIMARY KEY,
+                    provider_id TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    project_reference TEXT NOT NULL DEFAULT '',
+                    workspace_reference TEXT NOT NULL DEFAULT '',
+                    model TEXT NOT NULL,
+                    granularity TEXT NOT NULL CHECK (granularity IN ('minute', 'hour', 'day')),
+                    bucket_start_at TEXT NOT NULL,
+                    bucket_end_at TEXT NOT NULL,
+                    time_zone_identifier TEXT NOT NULL,
+                    input_tokens INTEGER NOT NULL CHECK (input_tokens >= 0),
+                    output_tokens INTEGER NOT NULL CHECK (output_tokens >= 0),
+                    cached_input_tokens INTEGER NOT NULL DEFAULT 0 CHECK (cached_input_tokens >= 0),
+                    cache_write_tokens INTEGER NOT NULL DEFAULT 0 CHECK (cache_write_tokens >= 0),
+                    source TEXT NOT NULL,
+                    source_kind TEXT NOT NULL CHECK (
+                        source_kind IN ('official', 'locallyAggregated', 'estimated', 'demonstration')
+                    ),
+                    updated_at TEXT NOT NULL,
+                    is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+                    CHECK (bucket_start_at < bucket_end_at),
+                    FOREIGN KEY (account_id, provider_id)
+                        REFERENCES accounts (id, provider_id) ON DELETE CASCADE,
+                    UNIQUE (
+                        provider_id, account_id, project_reference, workspace_reference,
+                        model, granularity, bucket_start_at
+                    )
+                ) STRICT
+                """
+        )
+        try database.execute(
+            sql: """
+                INSERT INTO usage_buckets (
+                    id, provider_id, account_id, project_reference, workspace_reference,
+                    model, granularity, bucket_start_at, bucket_end_at, time_zone_identifier,
+                    input_tokens, output_tokens, cached_input_tokens, cache_write_tokens,
+                    source, source_kind, updated_at, is_stale
+                )
+                SELECT id, provider_id, account_id, project_reference, '', model, granularity,
+                    bucket_start_at, bucket_end_at, time_zone_identifier, input_tokens,
+                    output_tokens, cached_input_tokens, cache_write_tokens, source, source_kind,
+                    updated_at, is_stale
+                FROM usage_buckets_v002
+                """
+        )
+        try database.execute(sql: "DROP TABLE usage_buckets_v002")
+        try database.execute(
+            sql: """
+                CREATE INDEX usage_buckets_range_idx
+                ON usage_buckets (
+                    provider_id, account_id, granularity, bucket_start_at DESC
+                )
+                """
+        )
+        try database.execute(
+            sql: """
+                CREATE INDEX usage_buckets_retention_idx
+                ON usage_buckets (granularity, bucket_start_at)
+                """
+        )
+    }
+
+    private static func migrateCostDimensions(in database: Database) throws {
+        try database.execute(sql: "ALTER TABLE cost_buckets RENAME TO cost_buckets_v002")
+        try database.execute(
+            sql: """
+                CREATE TABLE cost_buckets (
+                    id INTEGER PRIMARY KEY,
+                    provider_id TEXT NOT NULL,
+                    account_id TEXT NOT NULL,
+                    project_reference TEXT NOT NULL DEFAULT '',
+                    workspace_reference TEXT NOT NULL DEFAULT '',
+                    bucket_start_at TEXT NOT NULL,
+                    bucket_end_at TEXT NOT NULL,
+                    time_zone_identifier TEXT NOT NULL,
+                    amount_decimal TEXT NOT NULL,
+                    currency TEXT NOT NULL CHECK (
+                        length(currency) = 3 AND currency = upper(currency)
+                    ),
+                    is_estimated INTEGER NOT NULL CHECK (is_estimated IN (0, 1)),
+                    source TEXT NOT NULL,
+                    source_kind TEXT NOT NULL CHECK (
+                        source_kind IN ('official', 'locallyAggregated', 'estimated', 'demonstration')
+                    ),
+                    updated_at TEXT NOT NULL,
+                    is_stale INTEGER NOT NULL DEFAULT 0 CHECK (is_stale IN (0, 1)),
+                    CHECK (bucket_start_at < bucket_end_at),
+                    FOREIGN KEY (account_id, provider_id)
+                        REFERENCES accounts (id, provider_id) ON DELETE CASCADE,
+                    UNIQUE (
+                        provider_id, account_id, project_reference, workspace_reference,
+                        bucket_start_at, bucket_end_at, currency, source
+                    )
+                ) STRICT
+                """
+        )
+        try database.execute(
+            sql: """
+                INSERT INTO cost_buckets (
+                    id, provider_id, account_id, project_reference, workspace_reference,
+                    bucket_start_at, bucket_end_at, time_zone_identifier, amount_decimal,
+                    currency, is_estimated, source, source_kind, updated_at, is_stale
+                )
+                SELECT id, provider_id, account_id, project_reference, '', bucket_start_at,
+                    bucket_end_at, time_zone_identifier, amount_decimal, currency, is_estimated,
+                    source, source_kind, updated_at, is_stale
+                FROM cost_buckets_v002
+                """
+        )
+        try database.execute(sql: "DROP TABLE cost_buckets_v002")
+        try database.execute(
+            sql: """
+                CREATE INDEX cost_buckets_range_idx
+                ON cost_buckets (provider_id, account_id, bucket_start_at DESC, currency)
+                """
+        )
     }
 
     private static func createProviders(in database: Database) throws {
