@@ -20,8 +20,13 @@ public final class DashboardStore {
     public private(set) var isSynchronizing = false
     /// Most recent successful cache or synchronization observation.
     public private(set) var lastUpdatedAt: Date?
+    /// Active credential-free App Review scenario, or nil while production data is in use.
+    public private(set) var reviewScenario: AppReviewDemoScenario?
     /// Provider and range state shared by the Token page.
     public let tokensStore: TokensPageStore
+
+    /// Whether every dashboard value currently comes from bundled demonstration fixtures.
+    public var isReviewDemoActive: Bool { reviewScenario != nil }
 
     /// Aggregate status for the global header; text accompanies every visual symbol.
     public var headerStatus: TokenDeskStatus {
@@ -61,14 +66,83 @@ public final class DashboardStore {
         self.now = now
         tokensStore = TokensPageStore()
         if dataProvider == nil {
+            activateAppReviewDemo(.representative)
+        }
+    }
+
+    /// Stops production refreshes and atomically selects a deterministic, visibly labeled state.
+    public func activateAppReviewDemo(_ scenario: AppReviewDemoScenario) {
+        activeRefresh?.cancel()
+        activeRefresh = nil
+        activeRefreshID = nil
+        isSynchronizing = false
+        reviewScenario = scenario
+        capabilityStatuses = DashboardFixtures.providerCapabilityStatuses
+
+        let updatedAt = now().addingTimeInterval(scenario == .offline ? -3_600 : -300)
+        lastUpdatedAt = updatedAt
+        tokensStore.applyDemonstration(
+            providers: demonstrationProviders(for: scenario),
+            states: demonstrationTokenStates(for: scenario)
+        )
+
+        switch scenario {
+        case .representative:
             overviewState = .loaded(DashboardFixtures.overview)
             plansState = .loaded(DashboardFixtures.plans)
+        case .offline:
+            let issue = demonstrationIssue(
+                id: "network",
+                providerName: "演示网络",
+                kind: .offline,
+                message: "演示离线：显示最近数据，恢复网络后可重试。"
+            )
+            overviewState = .partial(DashboardFixtures.overview, issues: [issue])
+            plansState = .stale(DashboardFixtures.plans, lastUpdated: updatedAt)
+        case .authentication:
+            let issue = demonstrationIssue(
+                id: "openai",
+                providerName: "OpenAI 演示账户",
+                kind: .authentication,
+                message: "演示认证失败：无需输入真实密钥；其他 Provider 不受影响。"
+            )
+            overviewState = .partial(DashboardFixtures.overview, issues: [issue])
+            plansState = .failed(
+                title: "演示认证失败",
+                detail: "最近套餐数据仍可查看；无需提供高权限凭据。",
+                cached: DashboardFixtures.plans
+            )
+        case .rateLimited:
+            let issue = demonstrationIssue(
+                id: "openai",
+                providerName: "OpenAI 演示账户",
+                kind: .rateLimited,
+                message: "演示限流：遵循 Retry-After 60 秒，不生成替代数值。"
+            )
+            overviewState = .partial(DashboardFixtures.overview, issues: [issue])
+            plansState = .partial(DashboardFixtures.plans, issues: [issue])
         }
+    }
+
+    /// Leaves App Review mode and reloads cache plus live sources through production boundaries.
+    public func deactivateAppReviewDemo(location: WeatherLocation?) async {
+        guard reviewScenario != nil else { return }
+        guard dataProvider != nil else {
+            activateAppReviewDemo(.representative)
+            return
+        }
+        reviewScenario = nil
+        overviewState = .loading
+        plansState = .loading
+        tokensStore.applyProduction(providers: [], states: [:], fallback: .loading)
+        lastUpdatedAt = nil
+        await loadCache()
+        await refresh(location: location)
     }
 
     /// Reads SQLite immediately and then starts one foreground refresh of independent sources.
     public func start(location: WeatherLocation?) async {
-        guard dataProvider != nil else { return }
+        guard dataProvider != nil, reviewScenario == nil else { return }
         await loadCache()
         await refresh(location: location)
     }
@@ -82,6 +156,7 @@ public final class DashboardStore {
             try await Task.sleep(for: $0, tolerance: .seconds(5))
         }
     ) async {
+        guard reviewScenario == nil else { return }
         let weatherCadence = max(1, weatherRefreshMinutes)
         var elapsedMinutes = 0
         while !Task.isCancelled {
@@ -90,7 +165,7 @@ public final class DashboardStore {
             } catch {
                 return
             }
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, reviewScenario == nil else { return }
             elapsedMinutes += 1
             var scope: DashboardRefreshScope = [.usage]
             if elapsedMinutes.isMultiple(of: 5) { scope.insert(.money) }
@@ -104,7 +179,7 @@ public final class DashboardStore {
         location: WeatherLocation?,
         scope: DashboardRefreshScope = .all
     ) async {
-        guard let dataProvider else { return }
+        guard let dataProvider, reviewScenario == nil else { return }
         activeRefresh?.cancel()
         let refreshID = UUID()
         activeRefreshID = refreshID
@@ -153,6 +228,90 @@ public final class DashboardStore {
         } catch {
             await applyReadFailure(cached: nil)
         }
+    }
+
+    private func demonstrationProviders(
+        for scenario: AppReviewDemoScenario
+    ) -> [TokenProviderSnapshot] {
+        DashboardFixtures.tokenProviders.map { provider in
+            let status: TokenDeskStatus
+            switch scenario {
+            case .representative:
+                status = provider.status
+            case .offline:
+                status = provider.id == "codex" ? .unavailable : .stale
+            case .authentication, .rateLimited:
+                status = provider.id == "openai" ? .unavailable : provider.status
+            }
+            return TokenProviderSnapshot(id: provider.id, name: provider.name, status: status)
+        }
+    }
+
+    private func demonstrationTokenStates(
+        for scenario: AppReviewDemoScenario
+    ) -> [String: [TokenTimeRange: DashboardContentState<TokenDashboardSnapshot>]]? {
+        guard scenario != .representative else { return nil }
+        var states: [String: [TokenTimeRange: DashboardContentState<TokenDashboardSnapshot>]] = [:]
+        for provider in DashboardFixtures.tokenProviders {
+            var ranges: [TokenTimeRange: DashboardContentState<TokenDashboardSnapshot>] = [:]
+            for range in TokenTimeRange.allCases {
+                let fixture = DashboardFixtures.tokenContentState(
+                    providerID: provider.id,
+                    range: range
+                )
+                if provider.id == "codex" {
+                    ranges[range] = fixture
+                    continue
+                }
+                let snapshot = DashboardFixtures.tokens(providerID: provider.id, range: range)
+                switch scenario {
+                case .representative:
+                    ranges[range] = fixture
+                case .offline:
+                    ranges[range] = .partial(
+                        snapshot,
+                        issues: [
+                            demonstrationIssue(
+                                id: provider.id,
+                                providerName: provider.name,
+                                kind: .offline,
+                                message: "演示离线：保留最近成功数据。"
+                            )
+                        ]
+                    )
+                case .authentication where provider.id == "openai":
+                    ranges[range] = .failed(
+                        title: "OpenAI 演示认证失败",
+                        detail: "无需输入真实密钥；其他 Provider 仍可验证。",
+                        cached: snapshot
+                    )
+                case .rateLimited where provider.id == "openai":
+                    ranges[range] = .failed(
+                        title: "OpenAI 演示限流",
+                        detail: "Retry-After 60 秒；此状态不生成替代数值。",
+                        cached: nil
+                    )
+                case .authentication, .rateLimited:
+                    ranges[range] = fixture
+                }
+            }
+            states[provider.id] = ranges
+        }
+        return states
+    }
+
+    private func demonstrationIssue(
+        id: String,
+        providerName: String,
+        kind: DashboardIssue.Kind,
+        message: String
+    ) -> DashboardIssue {
+        DashboardIssue(
+            id: id,
+            providerName: providerName,
+            kind: kind,
+            message: message
+        )
     }
 
     private func project(

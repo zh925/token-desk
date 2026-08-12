@@ -71,6 +71,23 @@ public final class TokensPageStore {
         )
     }
 
+    /// Replaces production projections with deterministic, visibly labeled review fixtures.
+    public func applyDemonstration(
+        providers: [TokenProviderSnapshot] = DashboardFixtures.tokenProviders,
+        states: [String: [TokenTimeRange: DashboardContentState<TokenDashboardSnapshot>]]? = nil
+    ) {
+        productionStates = states
+        productionFallback = nil
+        self.providers = providers
+        if !providers.contains(where: { $0.id == selectedProviderID }) {
+            selectedProviderID = providers.first?.id ?? ""
+        }
+        contentState = resolvedContentState(
+            providerID: selectedProviderID,
+            range: selectedRange
+        )
+    }
+
     private func resolvedContentState(
         providerID: String,
         range: TokenTimeRange
@@ -87,11 +104,16 @@ public final class TokensPageStore {
 /// Provider-selectable Token metrics and Swift Charts trend page.
 public struct TokensPage: View {
     @Bindable private var store: TokensPageStore
+    private let isDemonstration: Bool
 
     /// Creates the page with an injectable observable store.
     @MainActor
-    public init(store: TokensPageStore = TokensPageStore()) {
+    public init(
+        store: TokensPageStore = TokensPageStore(),
+        isDemonstration: Bool = true
+    ) {
         self.store = store
+        self.isDemonstration = isDemonstration
     }
 
     /// Fixed provider-list, metric, chart, and footer layout.
@@ -101,7 +123,7 @@ public struct TokensPage: View {
                 PageHeading(
                     title: "Token页面",
                     subtitle: "输入、输出、缓存、费用与余额分别展示",
-                    code: "TOKEN USAGE · LIVE"
+                    code: isDemonstration ? "TOKEN USAGE · DEMO" : "TOKEN USAGE · LIVE"
                 )
                 Spacer(minLength: 20)
                 rangePicker

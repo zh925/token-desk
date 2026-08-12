@@ -69,16 +69,28 @@ public struct TokenDeskAppShell: View {
         Group {
             switch router.route {
             case .overview:
-                OverviewPage(state: dashboardStore.overviewState, clock: clock)
+                OverviewPage(
+                    state: dashboardStore.overviewState,
+                    clock: clock,
+                    isDemonstration: dashboardStore.isReviewDemoActive
+                )
             case .plans:
                 PlansPage(
                     state: dashboardStore.plansState,
-                    capabilityStatuses: dashboardStore.capabilityStatuses
+                    capabilityStatuses: dashboardStore.capabilityStatuses,
+                    isDemonstration: dashboardStore.isReviewDemoActive
                 )
             case .tokens:
-                TokensPage(store: dashboardStore.tokensStore)
+                TokensPage(
+                    store: dashboardStore.tokensStore,
+                    isDemonstration: dashboardStore.isReviewDemoActive
+                )
             case .settings:
-                SettingsPage(store: settingsStore, clock: clock)
+                SettingsPage(
+                    store: settingsStore,
+                    clock: clock,
+                    dashboardStore: dashboardStore
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -93,6 +105,7 @@ public struct TokenDeskAppShell: View {
 
     private var pollingTaskID: String {
         let locationKey = settingsStore.resolvedLocation?.key ?? "no-weather-location"
-        return "\(scenePhase)-\(settingsStore.preferences.weatherRefreshMinutes)-\(locationKey)"
+        return
+            "\(scenePhase)-\(settingsStore.preferences.weatherRefreshMinutes)-\(locationKey)-\(dashboardStore.isReviewDemoActive)"
     }
 }

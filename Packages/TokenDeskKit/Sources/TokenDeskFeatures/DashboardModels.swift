@@ -18,6 +18,37 @@ public enum DashboardContentState<Value: Equatable & Sendable>: Equatable, Senda
     case failed(title: String, detail: String, cached: Value?)
 }
 
+/// Credential-free, deterministic scenarios supplied for App Review and release verification.
+public enum AppReviewDemoScenario: String, CaseIterable, Equatable, Identifiable, Sendable {
+    case representative
+    case offline
+    case authentication
+    case rateLimited
+
+    /// Stable identifier used by review automation and SwiftUI controls.
+    public var id: String { rawValue }
+
+    /// Short label used by the built-in review controls.
+    public var title: String {
+        switch self {
+        case .representative: "代表性数据"
+        case .offline: "离线降级"
+        case .authentication: "认证失败"
+        case .rateLimited: "限流错误"
+        }
+    }
+
+    /// Privacy-safe explanation of the state the reviewer should observe.
+    public var detail: String {
+        switch self {
+        case .representative: "四页面使用静态脱敏数据；Codex 保持明确不支持。"
+        case .offline: "保留最近数据并显示离线、过期与部分失败状态。"
+        case .authentication: "OpenAI 显示认证失败，其他 Provider 仍保持可读。"
+        case .rateLimited: "OpenAI 显示 Retry-After 限流错误，不生成替代数值。"
+        }
+    }
+}
+
 /// A redacted, actionable degradation shown without exposing transport payloads.
 public struct DashboardIssue: Equatable, Identifiable, Sendable {
     /// Stable failure categories used by presentation and accessibility text.
@@ -534,7 +565,7 @@ public enum DashboardFixtures {
             inputTokens: input,
             outputTokens: output,
             cost: formattedCost,
-            costSource: provider.id == "openai" ? "● 官方 Costs" : "○ 版本化价格估算",
+            costSource: provider.id == "openai" ? "◇ 演示 · 官方 Costs 样例" : "◇ 演示 · 价格估算样例",
             balance: provider.id == "deepseek" ? "¥76.20" : "—",
             mostUsedModel: ["gpt-5.6", "claude-sonnet", "deepseek-chat", "glm-4.5"][
                 providerIndex % 4],

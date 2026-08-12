@@ -4,16 +4,19 @@ import TokenDeskDesign
 /// Time, weather, primary plan, and provider summaries for ambient viewing.
 public struct OverviewPage: View {
     private let state: DashboardContentState<OverviewSnapshot>
+    private let isDemonstration: Bool
     @Bindable private var clock: DashboardClock
 
     /// Creates an overview from a render state and independently observable clock.
     @MainActor
     public init(
         state: DashboardContentState<OverviewSnapshot> = .loaded(DashboardFixtures.overview),
-        clock: DashboardClock
+        clock: DashboardClock,
+        isDemonstration: Bool = true
     ) {
         self.state = state
         self.clock = clock
+        self.isDemonstration = isDemonstration
     }
 
     /// Fixed overview layout optimized for the 1280×720 canvas.
@@ -57,7 +60,9 @@ public struct OverviewPage: View {
     @ViewBuilder
     private func weatherPanel(_ weather: WeatherSnapshot?) -> some View {
         if let weather {
-            TokenDeskPanel("\(weather.city)天气 · 官方数据") {
+            TokenDeskPanel(
+                "\(weather.city)天气 · \(isDemonstration ? "演示数据" : "官方数据")"
+            ) {
                 VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.small) {
                     HStack(alignment: .top) {
                         VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.extraSmall) {
@@ -103,7 +108,7 @@ public struct OverviewPage: View {
     }
 
     private func usagePanel(_ snapshot: OverviewSnapshot) -> some View {
-        TokenDeskPanel("今日用量 · 生产数据") {
+        TokenDeskPanel("今日用量 · \(isDemonstration ? "演示数据" : "生产数据")") {
             VStack(spacing: TokenDeskDesign.Spacing.medium) {
                 Text("总览页面")
                     .font(TokenDeskTextStyle.auxiliary.font)

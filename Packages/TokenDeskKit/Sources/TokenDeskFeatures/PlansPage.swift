@@ -5,15 +5,18 @@ import TokenDeskDesign
 public struct PlansPage: View {
     private let state: DashboardContentState<[PlanWindowSnapshot]>
     private let capabilityStatuses: [ProviderCapabilityStatusSnapshot]
+    private let isDemonstration: Bool
 
     /// Creates a plan page in any supported dashboard render state.
     public init(
         state: DashboardContentState<[PlanWindowSnapshot]> = .loaded(DashboardFixtures.plans),
         capabilityStatuses: [ProviderCapabilityStatusSnapshot] =
-            DashboardFixtures.providerCapabilityStatuses
+            DashboardFixtures.providerCapabilityStatuses,
+        isDemonstration: Bool = true
     ) {
         self.state = state
         self.capabilityStatuses = capabilityStatuses
+        self.isDemonstration = isDemonstration
     }
 
     /// Fixed plan-window layout with source and confidence markings.
@@ -22,7 +25,7 @@ public struct PlansPage: View {
             PageHeading(
                 title: "套餐页面",
                 subtitle: "窗口额度只展示百分比，不换算为 Token",
-                code: "PLAN WINDOWS · LIVE"
+                code: isDemonstration ? "PLAN WINDOWS · DEMO" : "PLAN WINDOWS · LIVE"
             )
 
             DashboardStateView(state: state) { plans in

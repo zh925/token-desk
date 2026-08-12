@@ -255,6 +255,66 @@ func providerFallbacksKeepLocalEmptyAndUnsupportedStatesValueFree() {
 }
 
 @Test @MainActor
+func appReviewDemoIsCredentialFreeVisiblyLabeledAndCoversFourScenarios() {
+    let store = DashboardStore()
+
+    #expect(store.reviewScenario == .representative)
+    #expect(store.isReviewDemoActive)
+    #expect(
+        DashboardFixtures.plans.allSatisfy {
+            $0.source == .demonstration || $0.source == .estimated
+        }
+    )
+    for provider in DashboardFixtures.tokenProviders where provider.id != "codex" {
+        let snapshot = DashboardFixtures.tokens(providerID: provider.id, range: .week)
+        #expect(snapshot.costSource.contains("演示"))
+    }
+
+    store.activateAppReviewDemo(.offline)
+    guard case .partial(_, let offlineIssues) = store.overviewState else {
+        Issue.record("Expected cached overview plus an explicit demo offline issue")
+        return
+    }
+    #expect(offlineIssues.first?.kind == .offline)
+    guard case .stale = store.plansState else {
+        Issue.record("Expected stale plans in the demo offline scenario")
+        return
+    }
+
+    store.activateAppReviewDemo(.authentication)
+    guard
+        case .failed(let authenticationTitle, _, let cached) =
+            store.tokensStore.contentState
+    else {
+        Issue.record("Expected an isolated OpenAI demo authentication failure")
+        return
+    }
+    #expect(authenticationTitle.contains("认证失败"))
+    #expect(cached != nil)
+
+    store.activateAppReviewDemo(.rateLimited)
+    guard
+        case .failed(let rateLimitTitle, let detail, let cached) =
+            store.tokensStore.contentState
+    else {
+        Issue.record("Expected a value-free OpenAI demo rate-limit failure")
+        return
+    }
+    #expect(rateLimitTitle.contains("限流"))
+    #expect(detail.contains("Retry-After"))
+    #expect(cached == nil)
+
+    store.tokensStore.selectProvider("codex")
+    #expect(
+        store.tokensStore.contentState
+            == .empty(
+                title: "官方生产接口暂不可用",
+                detail: "GATE-02 关闭期间不读取 Cookie、私有容器或真实额度。"
+            )
+    )
+}
+
+@Test @MainActor
 func tokenProviderAndRangeSelectionsUpdateTheWholeSnapshot() {
     let store = TokensPageStore()
     let original = loadedSnapshot(from: store.contentState)
@@ -576,7 +636,7 @@ func exportUsesFilteredHistoryPayloadAndReportsSaveResult() async throws {
 }
 
 @Test @MainActor
-func settingsPageRendersAllFiveSectionsInsideFixedCanvas() throws {
+func settingsPageRendersAllSixSectionsInsideFixedCanvas() throws {
     let clock = DashboardClock(nowProvider: { Date(timeIntervalSince1970: 1_700_000_000) })
     let store = SettingsStore()
 
