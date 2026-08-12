@@ -74,9 +74,13 @@ jobs:
           -configuration Debug -destination 'platform=macOS'
           -disableAutomaticPackageResolution
           CODE_SIGNING_ALLOWED=NO ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO build
-      - name: Build Release app
-        run: >-
-          xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
-          -configuration Release -destination 'platform=macOS'
-          -disableAutomaticPackageResolution
-          CODE_SIGNING_ALLOWED=NO ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO build
+      - name: Build and verify Release archive
+        run: |
+          xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
+            -configuration Release -destination 'generic/platform=macOS' \
+            -archivePath DerivedData/TokenDesk.xcarchive \
+            -disableAutomaticPackageResolution \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= \
+            AD_HOC_CODE_SIGNING_ALLOWED=YES ARCHS='arm64 x86_64' ONLY_ACTIVE_ARCH=NO archive
+          ALLOW_ADHOC=1 ./scripts/verify-release-archive.sh \
+            DerivedData/TokenDesk.xcarchive

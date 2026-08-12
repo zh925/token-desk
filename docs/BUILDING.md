@@ -33,18 +33,25 @@ xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk \
 ./scripts/fixture-lint.py
 ```
 
+TD-064 Release Archive 的最终签名、entitlement 与私有 framework 检查见
+`docs/validation/TD-064_RELEASE_SANDBOX.md`。开发机可生成明确标注的 ad-hoc Archive 作为
+构建证据，但发布验收必须使用 Apple 签名身份并以严格模式运行
+`scripts/verify-release-archive.sh`。
+
 `Package.resolved` pins the GRDB revision selected from the approved `7.x` range. Dependency
 updates must change the lock file in a focused pull request and repeat both build configurations.
 
 ## Security configuration
 
-The application target enables App Sandbox and Hardened Runtime in Debug and Release. Its only
-initial Sandbox capability is outgoing network access. Location, notifications, user-selected
-exports, Keychain, login items, and signing are introduced and verified by their dedicated tasks;
-this baseline does not claim those runtime capabilities are already validated.
+The application target enables App Sandbox and Hardened Runtime in Debug and Release. Its Sandbox
+capabilities are outgoing network access, location, and read/write access to the single file chosen
+through a system panel. Notifications, Keychain, and `SMAppService.mainApp` do not require broader
+container or file access. Final Apple signing and clean-account runtime evidence remain explicit
+release acceptance work; unsigned or ad-hoc builds do not claim those checks passed.
 
-Unsigned CI builds prove compilation and settings consistency but do not replace signed Release,
-Archive, Mac App Store, or physical Wokyis M5 verification. TD-064 owns that evidence.
+Unsigned Debug CI builds and ad-hoc Release Archives prove compilation and settings consistency but
+do not replace Apple-signed Release, Mac App Store, or physical Wokyis M5 verification. TD-064 owns
+that evidence.
 
 ## UI acceptance evidence
 
