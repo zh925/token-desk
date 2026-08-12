@@ -12,14 +12,65 @@ public struct DisplayCanvas<Content: View>: View {
 
     /// The uniformly scaled dashboard content.
     public var body: some View {
-        GeometryReader { geometry in
-            let scale = min(geometry.size.width / 1_280, geometry.size.height / 720)
+        DisplayCanvasLayout {
             content
-                .frame(width: 1_280, height: 720)
-                .scaleEffect(scale)
-                .frame(width: geometry.size.width, height: geometry.size.height)
-                .clipped()
         }
+        .modifier(DisplayCanvasScaleEffect())
+        .clipped()
+    }
+}
+
+private struct DisplayCanvasLayout: Layout {
+    func sizeThatFits(
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) -> CGSize {
+        proposal.replacingUnspecifiedDimensions(by: DisplayCanvasScale.designSize)
+    }
+
+    func placeSubviews(
+        in bounds: CGRect,
+        proposal: ProposedViewSize,
+        subviews: Subviews,
+        cache: inout ()
+    ) {
+        guard let content = subviews.first else { return }
+        content.place(
+            at: CGPoint(x: bounds.midX, y: bounds.midY),
+            anchor: .center,
+            proposal: ProposedViewSize(DisplayCanvasScale.designSize)
+        )
+    }
+}
+
+struct DisplayCanvasScale {
+    static let designSize = CGSize(width: 1_280, height: 720)
+
+    static func factor(for containerSize: CGSize) -> CGFloat {
+        guard
+            containerSize.width.isFinite,
+            containerSize.height.isFinite,
+            containerSize.width > 0,
+            containerSize.height > 0
+        else {
+            return 0
+        }
+        return min(
+            containerSize.width / designSize.width,
+            containerSize.height / designSize.height
+        )
+    }
+}
+
+private struct DisplayCanvasScaleEffect: GeometryEffect {
+    nonisolated func effectValue(size: CGSize) -> ProjectionTransform {
+        let scale = DisplayCanvasScale.factor(for: size)
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        let transform = CGAffineTransform(translationX: center.x, y: center.y)
+            .scaledBy(x: scale, y: scale)
+            .translatedBy(x: -center.x, y: -center.y)
+        return ProjectionTransform(transform)
     }
 }
 

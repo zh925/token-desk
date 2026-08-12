@@ -217,6 +217,23 @@ func regularWindowStyleIncludesNativeWindowControls() {
     #expect(styleMask.contains(.resizable))
 }
 
+@Test
+func displayCanvasScaleUniformlyFitsWindowAndFullScreenSizes() {
+    #expect(
+        DisplayCanvasScale.factor(for: CGSize(width: 1_227, height: 662))
+            == CGFloat(662) / 720)
+    #expect(DisplayCanvasScale.factor(for: CGSize(width: 1_280, height: 720)) == 1)
+    #expect(DisplayCanvasScale.factor(for: CGSize(width: 2_560, height: 1_440)) == 2)
+}
+
+@Test
+func displayCanvasScaleRejectsTransientInvalidLayoutSizes() {
+    #expect(DisplayCanvasScale.factor(for: .zero) == 0)
+    #expect(DisplayCanvasScale.factor(for: CGSize(width: -1, height: 720)) == 0)
+    #expect(DisplayCanvasScale.factor(for: CGSize(width: CGFloat.infinity, height: 720)) == 0)
+    #expect(DisplayCanvasScale.factor(for: CGSize(width: CGFloat.nan, height: 720)) == 0)
+}
+
 @MainActor
 @Test
 func manualSelectionPersistsFingerprintAndReconnectsToNewRuntimeIdentifier() {
