@@ -125,6 +125,7 @@ public struct TokenDeskButtonStyle: ButtonStyle {
         let isSelected: Bool
 
         @Environment(\.accessibilityReduceMotion) private var reduceMotion
+        @Environment(\.tokenDeskReduceMotionOverride) private var reduceMotionOverride
         @Environment(\.isEnabled) private var isEnabled
         @FocusState private var isFocused: Bool
         @State private var isHovered = false
@@ -166,7 +167,7 @@ public struct TokenDeskButtonStyle: ButtonStyle {
                 .focused($isFocused)
                 .onHover { isHovered = $0 }
                 .animation(
-                    reduceMotion ? nil : .linear(duration: 0.08),
+                    reduceMotion || reduceMotionOverride ? nil : .linear(duration: 0.08),
                     value: isHovered
                 )
                 .opacity(isEnabled ? 1 : 0.72)

@@ -202,9 +202,21 @@ public struct TokensPage: View {
         VStack(spacing: TokenDeskDesign.Spacing.small) {
             HStack(spacing: TokenDeskDesign.Spacing.small) {
                 MetricTile(label: "输入 TOKEN", value: compact(snapshot.inputTokens))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("token-input-metric")
+                    .accessibilityLabel("输入 TOKEN：\(compact(snapshot.inputTokens))")
                 MetricTile(label: "输出 TOKEN", value: compact(snapshot.outputTokens))
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("token-output-metric")
+                    .accessibilityLabel("输出 TOKEN：\(compact(snapshot.outputTokens))")
                 MetricTile(label: "费用", value: snapshot.cost, detail: snapshot.costSource)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("token-cost-metric")
+                    .accessibilityLabel("费用：\(snapshot.cost)，\(snapshot.costSource)")
                 MetricTile(label: "余额", value: snapshot.balance, detail: "未知不显示为 0")
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityIdentifier("token-balance-metric")
+                    .accessibilityLabel("余额：\(snapshot.balance)，未知不显示为 0")
             }
             .frame(height: 104)
 
@@ -284,8 +296,9 @@ private struct TokenUsageChart: View {
                 AxisMarks(position: .leading)
             }
             .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Token 使用趋势图")
+            .accessibilityLabel("Token 使用趋势图，\(snapshot.chartSummary)")
             .accessibilityValue(snapshot.chartSummary)
+            .accessibilityIdentifier("token-usage-chart")
 
             Text("图表摘要：\(snapshot.chartSummary)")
                 .font(TokenDeskTextStyle.auxiliary.font)

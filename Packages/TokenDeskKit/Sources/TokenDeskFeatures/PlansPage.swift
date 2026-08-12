@@ -125,7 +125,10 @@ private struct PlanWindowCard: View {
         .overlay {
             Rectangle().stroke(TokenDeskDesign.Palette.ink.color, lineWidth: 2)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(plan.provider) \(plan.name)，已使用 \(plan.usedPercent)%，\(plan.window)，\(plan.resetDescription)，\(plan.source.rawValue)"
+        )
         .accessibilityIdentifier("plan-window-\(plan.id)")
     }
 }
