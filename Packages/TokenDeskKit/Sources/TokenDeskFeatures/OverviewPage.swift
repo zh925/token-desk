@@ -158,7 +158,11 @@ public struct OverviewPage: View {
         .overlay {
             Rectangle().stroke(TokenDeskDesign.Palette.ink.color, lineWidth: 2)
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(plan.provider) \(plan.name)，已使用 \(plan.usedPercent)%，\(plan.window)，\(plan.resetDescription)，\(plan.source.rawValue)"
+        )
+        .accessibilityIdentifier("overview-primary-plan")
     }
 
     private func providerSummary(_ provider: ProviderSummarySnapshot) -> some View {
@@ -181,6 +185,11 @@ public struct OverviewPage: View {
         .overlay {
             Rectangle().stroke(TokenDeskDesign.Palette.ink.color, lineWidth: 2)
         }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(
+            "\(provider.name)，\(provider.usage)，\(provider.cost)，\(provider.balance)，\(provider.status.label)"
+        )
+        .accessibilityIdentifier("overview-provider-\(provider.id)")
     }
 
     private func summaryValue(_ label: String, _ value: String) -> some View {

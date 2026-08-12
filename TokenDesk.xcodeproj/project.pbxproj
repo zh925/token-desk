@@ -11,6 +11,7 @@
 		000000000000000000000302 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000102 /* ContentView.swift */; };
 		000000000000000000000303 /* TokenDeskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000104 /* TokenDeskTests.swift */; };
 		000000000000000000000304 /* TokenDeskUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000105 /* TokenDeskUITests.swift */; };
+		000000000000000000000305 /* TokenDeskAcceptanceUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 000000000000000000000111 /* TokenDeskAcceptanceUITests.swift */; };
 		000000000000000000000310 /* TokenDeskCore in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000201 /* TokenDeskCore */; };
 		000000000000000000000311 /* TokenDeskData in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000202 /* TokenDeskData */; };
 		000000000000000000000312 /* TokenDeskConnectors in Frameworks */ = {isa = PBXBuildFile; productRef = 000000000000000000000203 /* TokenDeskConnectors */; };
@@ -45,6 +46,7 @@
 		000000000000000000000106 /* TokenDesk.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = TokenDesk.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000107 /* TokenDeskTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TokenDeskTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		000000000000000000000108 /* TokenDeskUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = TokenDeskUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		000000000000000000000111 /* TokenDeskAcceptanceUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TokenDeskAcceptanceUITests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,6 +131,7 @@
 			isa = PBXGroup;
 			children = (
 				000000000000000000000105 /* TokenDeskUITests.swift */,
+				000000000000000000000111 /* TokenDeskAcceptanceUITests.swift */,
 			);
 			path = TokenDeskUITests;
 			sourceTree = "<group>";
@@ -297,6 +300,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				000000000000000000000304 /* TokenDeskUITests.swift in Sources */,
+				000000000000000000000305 /* TokenDeskAcceptanceUITests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

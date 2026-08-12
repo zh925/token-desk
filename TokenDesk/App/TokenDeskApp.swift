@@ -1,7 +1,9 @@
+import AppKit
 import SwiftUI
 import TokenDeskConnectors
 import TokenDeskCore
 import TokenDeskData
+import TokenDeskDesign
 import TokenDeskFeatures
 import TokenDeskPlatform
 
@@ -12,16 +14,20 @@ struct TokenDeskApp: App {
     @State private var clock: DashboardClock
     @State private var dashboardStore: DashboardStore
     @State private var settingsStore: SettingsStore
+    private let uiTestConfiguration: UITestConfiguration
 
     init() {
+        let uiTestConfiguration = UITestConfiguration(arguments: ProcessInfo.processInfo.arguments)
+        self.uiTestConfiguration = uiTestConfiguration
         let displayController = DisplayController()
         _displayController = StateObject(wrappedValue: displayController)
-        let preferencesStore = UserDefaultsSettingsPreferencesStore()
-        let preferences = preferencesStore.load()
+        let preferencesStore = uiTestConfiguration.makePreferencesStore()
+        let preferences = uiTestConfiguration.preferences ?? preferencesStore.load()
+        if uiTestConfiguration.isEnabled {
+            try? preferencesStore.save(preferences)
+        }
         _clock = State(
-            initialValue: DashboardClock(
-                timeZoneOverrideIdentifier: preferences.timeZoneOverrideIdentifier
-            )
+            initialValue: uiTestConfiguration.makeClock(preferences: preferences)
         )
         let providerServices = ApplicationProviderServices()
         let dashboardStore = DashboardStore(dataProvider: providerServices)
@@ -29,39 +35,164 @@ struct TokenDeskApp: App {
             dashboardStore.activateAppReviewDemo(.representative)
         }
         _dashboardStore = State(initialValue: dashboardStore)
-        _settingsStore = State(
-            initialValue: SettingsStore(
-                preferencesStore: preferencesStore,
-                locationService: CoreLocationService(),
-                notificationService: NotificationService(),
-                launchAtLoginService: LaunchAtLoginService(),
-                displayService: displayController,
-                exportService: SavePanelHistoryExportService(),
-                historyDataService: providerServices,
-                providerManager: providerServices,
-                connectionTester: providerServices
+        if uiTestConfiguration.isEnabled {
+            _settingsStore = State(
+                initialValue: SettingsStore(preferencesStore: preferencesStore)
             )
-        )
+        } else {
+            _settingsStore = State(
+                initialValue: SettingsStore(
+                    preferencesStore: preferencesStore,
+                    locationService: CoreLocationService(),
+                    notificationService: NotificationService(),
+                    launchAtLoginService: LaunchAtLoginService(),
+                    displayService: displayController,
+                    exportService: SavePanelHistoryExportService(),
+                    historyDataService: providerServices,
+                    providerManager: providerServices,
+                    connectionTester: providerServices
+                )
+            )
+        }
     }
 
     var body: some Scene {
         WindowGroup {
-            DisplayCanvas {
-                ContentView(
-                    clock: clock,
-                    dashboardStore: dashboardStore,
-                    settingsStore: settingsStore
+            UITestEnvironment(configuration: uiTestConfiguration) {
+                DisplayCanvas {
+                    ContentView(
+                        clock: clock,
+                        dashboardStore: dashboardStore,
+                        settingsStore: settingsStore
+                    )
+                }
+                .modifier(
+                    DisplayControllerAttachment(
+                        controller: displayController,
+                        isEnabled: !uiTestConfiguration.isEnabled
+                    )
                 )
-            }
-            .background(DisplayWindowAttachment(controller: displayController))
-            .onAppear {
-                displayController.start()
-            }
-            .onDisappear {
-                displayController.stop()
             }
         }
         .defaultSize(width: 1_280, height: 720)
+    }
+}
+
+private struct DisplayControllerAttachment: ViewModifier {
+    @ObservedObject var controller: DisplayController
+    let isEnabled: Bool
+
+    func body(content: Content) -> some View {
+        if isEnabled {
+            content
+                .background(DisplayWindowAttachment(controller: controller))
+                .onAppear { controller.start() }
+                .onDisappear { controller.stop() }
+        } else {
+            content.background(UITestWindowAttachment())
+        }
+    }
+}
+
+private struct UITestWindowAttachment: NSViewRepresentable {
+    func makeNSView(context: Context) -> NSView {
+        UITestWindowAttachmentView()
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {}
+}
+
+@MainActor
+private final class UITestWindowAttachmentView: NSView {
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        Task { @MainActor [weak window] in
+            await Task.yield()
+            guard let window, let screen = window.screen ?? NSScreen.main else { return }
+            window.styleMask = [.borderless]
+            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+            window.isMovable = false
+            let targetSize = NSSize(width: 1_280, height: 720)
+            let targetFrame = NSRect(
+                x: screen.frame.midX - targetSize.width / 2,
+                y: screen.frame.midY - targetSize.height / 2,
+                width: targetSize.width,
+                height: targetSize.height
+            )
+            window.setFrame(targetFrame, display: true, animate: false)
+        }
+    }
+}
+
+private struct UITestConfiguration {
+    let isEnabled: Bool
+    let forcesReduceMotion: Bool
+    let fixedDate: Date?
+
+    init(arguments: [String]) {
+        isEnabled = arguments.contains("--ui-testing")
+        forcesReduceMotion = arguments.contains("--ui-test-reduce-motion")
+        fixedDate =
+            arguments.contains("--ui-test-fixed-clock")
+            ? Date(timeIntervalSince1970: 1_735_789_445)
+            : nil
+    }
+
+    var preferences: SettingsPreferences? {
+        guard isEnabled else { return nil }
+        return SettingsPreferences(timeZoneOverrideIdentifier: "Asia/Shanghai")
+    }
+
+    @MainActor
+    func makePreferencesStore() -> UserDefaultsSettingsPreferencesStore {
+        guard isEnabled else { return UserDefaultsSettingsPreferencesStore() }
+        let suiteName = "app.tokendesk.TokenDesk.ui-tests"
+        let defaults = UserDefaults(suiteName: suiteName) ?? .standard
+        defaults.removePersistentDomain(forName: suiteName)
+        return UserDefaultsSettingsPreferencesStore(defaults: defaults)
+    }
+
+    @MainActor
+    func makeClock(preferences: SettingsPreferences) -> DashboardClock {
+        guard let fixedDate else {
+            return DashboardClock(
+                timeZoneOverrideIdentifier: preferences.timeZoneOverrideIdentifier
+            )
+        }
+        return DashboardClock(
+            now: fixedDate,
+            timeZoneOverrideIdentifier: preferences.timeZoneOverrideIdentifier,
+            nowProvider: { fixedDate }
+        )
+    }
+}
+
+private struct UITestEnvironment<Content: View>: View {
+    let configuration: UITestConfiguration
+    let content: Content
+
+    init(configuration: UITestConfiguration, @ViewBuilder content: () -> Content) {
+        self.configuration = configuration
+        self.content = content()
+    }
+
+    var body: some View {
+        if configuration.isEnabled && configuration.forcesReduceMotion {
+            content
+                .environment(\.tokenDeskReduceMotionOverride, true)
+                .overlay(alignment: .bottomTrailing) {
+                    reduceMotionProbe
+                }
+        } else {
+            content
+        }
+    }
+
+    private var reduceMotionProbe: some View {
+        Text("Reduce Motion enabled")
+            .accessibilityIdentifier("ui-test-reduce-motion-enabled")
+            .frame(width: 1, height: 1)
+            .opacity(0.01)
     }
 }
 
