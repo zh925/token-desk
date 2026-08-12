@@ -4,12 +4,16 @@ import TokenDeskDesign
 /// Percentage-based plan windows, kept separate from Token usage and cost.
 public struct PlansPage: View {
     private let state: DashboardContentState<[PlanWindowSnapshot]>
+    private let capabilityStatuses: [ProviderCapabilityStatusSnapshot]
 
     /// Creates a plan page in any supported dashboard render state.
     public init(
-        state: DashboardContentState<[PlanWindowSnapshot]> = .loaded(DashboardFixtures.plans)
+        state: DashboardContentState<[PlanWindowSnapshot]> = .loaded(DashboardFixtures.plans),
+        capabilityStatuses: [ProviderCapabilityStatusSnapshot] =
+            DashboardFixtures.providerCapabilityStatuses
     ) {
         self.state = state
+        self.capabilityStatuses = capabilityStatuses
     }
 
     /// Fixed plan-window layout with source and confidence markings.
@@ -32,7 +36,11 @@ public struct PlansPage: View {
                         ForEach(Array(plans.dropFirst(2).prefix(2))) { plan in
                             PlanWindowCard(plan: plan)
                         }
-                        PlanLegendCard()
+                        PlanLegendCard(
+                            codexStatus: capabilityStatuses.first {
+                                $0.id == "codex-plan-unsupported"
+                            }
+                        )
                     }
                 }
             }
@@ -120,15 +128,21 @@ private struct PlanWindowCard: View {
 }
 
 private struct PlanLegendCard: View {
+    let codexStatus: ProviderCapabilityStatusSnapshot?
+
     var body: some View {
         VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.medium) {
             Text("额度显示规则")
                 .font(TokenDeskTextStyle.cardTitle.font)
-            Text("● 官方数据")
-            Text("○ 本地估算 · 必须标注置信度")
-            Text("◇ 演示数据 · 不代表真实额度")
+            if let codexStatus {
+                Text("Codex：\(codexStatus.title)")
+                    .font(TokenDeskTextStyle.cardTitle.font)
+                Text(codexStatus.detail)
+                    .font(TokenDeskTextStyle.auxiliary.font)
+            }
             Divider()
-            Text("0% 与 100% 均为有效值；未知值显示 —，不会显示为 0。")
+            Text("● 官方 · ○ 估算 · ◇ 演示（不代表真实额度）")
+            Text("未知值显示 —，不会显示为 0。")
         }
         .font(TokenDeskTextStyle.body.font)
         .padding(TokenDeskDesign.Spacing.large)

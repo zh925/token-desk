@@ -155,6 +155,98 @@ struct LocalMeteredUsageContext: Sendable {
     }
 }
 
+/// Shared implementation for providers whose public API exposes per-response usage but no
+/// trustworthy historical usage, plan, or balance read suitable for this connector.
+struct LocalResponseUsageConnectorContext: Sendable {
+    let runtime: ProviderConnectorRuntime
+    let localUsage: LocalMeteredUsageContext
+
+    func validateCredentials(for account: AccountReference) throws {
+        try runtime.validateCredentials(for: account)
+    }
+
+    func fetchUsage(
+        for account: AccountReference,
+        in interval: DateInterval
+    ) throws -> ConnectorReadResult<TokenUsageBucket> {
+        guard runtime.descriptor.capabilities.contains(.usage) else { return .unsupported }
+        try runtime.validate(account: account)
+        return try localUsage.usage(for: account, in: interval)
+    }
+
+    func fetchCosts(
+        descriptor: ProviderDescriptor,
+        account: AccountReference,
+        interval: DateInterval
+    ) throws -> ConnectorReadResult<CostSnapshot> {
+        guard runtime.descriptor.capabilities.contains(.cost) else { return .unsupported }
+        try runtime.validate(account: account)
+        return try localUsage.costs(
+            descriptor: descriptor,
+            account: account,
+            interval: interval,
+            calculatedAt: runtime.now()
+        )
+    }
+
+    func recordResponseUsage(
+        for account: AccountReference,
+        model: String,
+        observedAt: Date,
+        promptTokens: Int64,
+        outputTokens: Int64,
+        cachedInputTokens: Int64,
+        reportedTotalTokens: Int64?,
+        sourceIdentifier: String
+    ) throws -> TokenUsageBucket {
+        try Task.checkCancellation()
+        try runtime.validate(account: account, capability: .usage)
+        guard promptTokens >= 0, outputTokens >= 0, cachedInputTokens >= 0,
+            cachedInputTokens <= promptTokens
+        else {
+            throw ConnectorError.decoding
+        }
+        let (computedTotal, totalOverflow) = promptTokens.addingReportingOverflow(outputTokens)
+        guard !totalOverflow, reportedTotalTokens.map({ $0 == computedTotal }) ?? true else {
+            throw ConnectorError.decoding
+        }
+        let (uncachedInputTokens, subtractionOverflow) =
+            promptTokens.subtractingReportingOverflow(cachedInputTokens)
+        guard !subtractionOverflow else { throw ConnectorError.decoding }
+
+        let bucket = try TokenUsageBucket(
+            providerID: runtime.descriptor.id,
+            accountID: account.id,
+            projectReference: account.hierarchy.projectReference,
+            workspaceReference: account.hierarchy.workspaceReference,
+            model: model,
+            granularity: .minute,
+            period: ProviderMapping.minutePeriod(containing: observedAt),
+            tokens: TokenBreakdown(
+                input: TokenCount(rawValue: uncachedInputTokens),
+                output: TokenCount(rawValue: outputTokens),
+                cachedInput: TokenCount(rawValue: cachedInputTokens)
+            ),
+            metadata: ProviderMapping.metadata(
+                kind: .locallyAggregated,
+                identifier: sourceIdentifier,
+                updatedAt: runtime.now()
+            )
+        )
+        try Task.checkCancellation()
+        try localUsage.record(bucket)
+        return bucket
+    }
+
+    func health() -> ConnectorHealth {
+        ConnectorHealth(
+            providerID: runtime.descriptor.id,
+            state: .notSynchronized,
+            checkedAt: runtime.now()
+        )
+    }
+}
+
 enum ProviderMapping {
     static func date(_ value: String) throws -> Date {
         let formatter = ISO8601DateFormatter()

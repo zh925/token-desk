@@ -70,6 +70,21 @@ func planFixturesExerciseZeroOneHundredAndSourceLabels() {
     #expect(DashboardFixtures.plans.allSatisfy { !$0.source.rawValue.isEmpty })
 }
 
+@Test
+func providerFallbacksKeepLocalEmptyAndUnsupportedStatesValueFree() {
+    let statuses = DashboardFixtures.providerCapabilityStatuses
+    let codex = statuses.first { $0.id == "codex-plan-unsupported" }
+    let gemini = statuses.first { $0.id == "gemini-usage-local" }
+
+    #expect(codex?.state == .unsupported)
+    #expect(codex?.title == "官方生产接口暂不可用")
+    #expect(codex?.detail.contains("Cookie") == true)
+    #expect(gemini?.state == .notSynchronized)
+    #expect(gemini?.detail.contains("本地") == true)
+    #expect(statuses.contains { $0.id == "glm-plan-unsupported" })
+    #expect(statuses.contains { $0.id == "minimax-plan-unsupported" })
+}
+
 @Test @MainActor
 func tokenProviderAndRangeSelectionsUpdateTheWholeSnapshot() {
     let store = TokensPageStore()

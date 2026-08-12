@@ -1,0 +1,10 @@
+{
+  "modelVersion": "gemini-2.5-flash-example",
+  "usageMetadata": {
+    "promptTokenCount": 1200,
+    "cachedContentTokenCount": 200,
+    "candidatesTokenCount": 340,
+    "thoughtsTokenCount": 60,
+    "totalTokenCount": 1600
+  }
+}
