@@ -138,7 +138,9 @@ public final class DashboardStore {
         var overviewProviders: [ProviderSummarySnapshot] = []
         for providerID in providerIDs {
             let providerName = names[providerID] ?? providerID.rawValue
-            let providerIssues = namedIssues.filter { $0.id == providerID.rawValue }
+            let providerIssues = namedIssues.filter {
+                $0.id == providerID.rawValue || $0.id == "local-database"
+            }
             let providerData = hasData(for: providerID, in: data)
             let status = providerStatus(
                 providerID: providerID,

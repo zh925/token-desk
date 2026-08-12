@@ -134,6 +134,58 @@ func productionDashboardIsolatesAuthenticationAndOfflineAsPartialData() async th
 }
 
 @Test @MainActor
+func productionDashboardKeepsCachedDataForPermissionAndServerFailures() async throws {
+    let now = Date(timeIntervalSince1970: 1_786_500_000)
+    let data = try dashboardData(now: now)
+    let cases: [(ConnectorError, DashboardIssue.Kind)] = [
+        (.permissionDenied, .permission),
+        (.server(statusCode: 500), .unavailable),
+    ]
+
+    for (error, expectedKind) in cases {
+        let provider = TestDashboardDataProvider(data: data, now: now, failure: error)
+        let store = DashboardStore(dataProvider: provider, now: { now })
+
+        await store.start(location: nil)
+
+        guard case .partial(let snapshot, let issues) = store.tokensStore.contentState else {
+            Issue.record("Expected cached values plus a typed 403/500 failure")
+            continue
+        }
+        #expect(snapshot.inputTokens == 12)
+        #expect(issues.first?.providerName == "OpenAI Production")
+        #expect(issues.first?.kind == expectedKind)
+    }
+}
+
+@Test @MainActor
+func productionDashboardRecoversAfterTransientDatabaseReadFailure() async throws {
+    let now = Date(timeIntervalSince1970: 1_786_500_000)
+    let provider = TestDashboardDataProvider(data: try dashboardData(now: now), now: now)
+    let store = DashboardStore(dataProvider: provider, now: { now })
+
+    await store.start(location: nil)
+    guard case .loaded(let initial) = store.tokensStore.contentState else {
+        Issue.record("Expected the initial cache read to load production values")
+        return
+    }
+
+    provider.shouldFailCacheRead = true
+    await store.refresh(location: nil)
+    guard case .partial(let cached, let issues) = store.tokensStore.contentState else {
+        Issue.record("Expected an explicit database error with the last in-memory snapshot")
+        return
+    }
+    #expect(cached == initial)
+    #expect(issues.first?.kind == .persistence)
+    #expect(issues.first?.message.contains("数据库读取失败") == true)
+
+    provider.shouldFailCacheRead = false
+    await store.refresh(location: nil)
+    #expect(store.tokensStore.contentState == .loaded(initial))
+}
+
+@Test @MainActor
 func productionDashboardShowsRateLimitWithoutInventingValues() async throws {
     let now = Date(timeIntervalSince1970: 1_786_500_000)
     let data = try dashboardData(now: now, includeUsage: false)
@@ -153,6 +205,30 @@ func productionDashboardShowsRateLimitWithoutInventingValues() async throws {
     #expect(title == "OpenAI Production")
     #expect(detail.contains("Retry-After"))
     #expect(cached == nil)
+}
+
+@Test @MainActor
+func productionDashboardRecoversAfterOfflineFailure() async throws {
+    let now = Date(timeIntervalSince1970: 1_786_500_000)
+    let provider = TestDashboardDataProvider(
+        data: try dashboardData(now: now),
+        now: now,
+        failure: .network
+    )
+    let store = DashboardStore(dataProvider: provider, now: { now })
+
+    await store.start(location: nil)
+    guard case .partial(let cached, let issues) = store.tokensStore.contentState else {
+        Issue.record("Expected cached production values while offline")
+        return
+    }
+    #expect(cached.inputTokens == 12)
+    #expect(issues.first?.kind == .offline)
+
+    provider.failure = nil
+    await store.refresh(location: nil)
+    #expect(store.tokensStore.contentState == .loaded(cached))
+    #expect(store.headerStatus == .connected)
 }
 
 @Test
@@ -488,7 +564,8 @@ private func loadedSnapshot(
 private final class TestDashboardDataProvider: DashboardDataProviding, @unchecked Sendable {
     let data: DashboardDataSnapshot
     let now: Date
-    let failure: ConnectorError?
+    var failure: ConnectorError?
+    var shouldFailCacheRead = false
 
     init(data: DashboardDataSnapshot, now: Date, failure: ConnectorError? = nil) {
         self.data = data
@@ -496,7 +573,10 @@ private final class TestDashboardDataProvider: DashboardDataProviding, @unchecke
         self.failure = failure
     }
 
-    func loadCachedDashboardData() async throws -> DashboardDataSnapshot { data }
+    func loadCachedDashboardData() async throws -> DashboardDataSnapshot {
+        if shouldFailCacheRead { throw TestDashboardDataError.databaseUnavailable }
+        return data
+    }
 
     func refreshDashboardData(location: WeatherLocation?) async -> DashboardRefreshResult {
         let providerID = data.configurations.first?.providerID
@@ -515,6 +595,10 @@ private final class TestDashboardDataProvider: DashboardDataProviding, @unchecke
             weatherResult: nil
         )
     }
+}
+
+private enum TestDashboardDataError: Error {
+    case databaseUnavailable
 }
 
 private func emptyDashboardData() -> DashboardDataSnapshot {

@@ -24,13 +24,13 @@ struct ContentView: View {
             dashboardStore: dashboardStore,
             settingsStore: settingsStore
         )
-            .onReceive(
-                NSWorkspace.shared.notificationCenter.publisher(
-                    for: NSWorkspace.didWakeNotification
-                )
-            ) { _ in
-                clock.resume()
-            }
+        .onReceive(
+            NSWorkspace.shared.notificationCenter.publisher(
+                for: NSWorkspace.didWakeNotification
+            )
+        ) { _ in
+            clock.resume()
+        }
     }
 }
 
