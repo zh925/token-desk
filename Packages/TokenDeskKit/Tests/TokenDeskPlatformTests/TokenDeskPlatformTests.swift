@@ -188,6 +188,35 @@ func fallbackWindowLayoutUniformlyFitsInsideVisibleFrame() {
     #expect(frame.originY == 85)
 }
 
+@Test
+func targetWindowLayoutUsesAWindowedFrameInsideTheVisibleDesktop() {
+    let targetDisplay = display(
+        runtimeId: 2,
+        name: "Wokyis",
+        isMain: false,
+        frame: DisplayFrame(originX: 1_512, originY: 0, width: 1_920, height: 1_080),
+        visibleFrame: DisplayFrame(originX: 1_512, originY: 25, width: 1_920, height: 1_055)
+    )
+
+    let frame = DisplayWindowLayout.targetFrame(for: targetDisplay)
+
+    #expect(frame.width == 1_280)
+    #expect(frame.height == 720)
+    #expect(frame.originX == 1_832)
+    #expect(frame.originY == 192.5)
+    #expect(frame != targetDisplay.frame)
+}
+
+@Test
+func regularWindowStyleIncludesNativeWindowControls() {
+    let styleMask = DisplayWindowStyle.regularStyleMask(from: [.borderless])
+
+    #expect(styleMask.contains(.titled))
+    #expect(styleMask.contains(.closable))
+    #expect(styleMask.contains(.miniaturizable))
+    #expect(styleMask.contains(.resizable))
+}
+
 @MainActor
 @Test
 func manualSelectionPersistsFingerprintAndReconnectsToNewRuntimeIdentifier() {

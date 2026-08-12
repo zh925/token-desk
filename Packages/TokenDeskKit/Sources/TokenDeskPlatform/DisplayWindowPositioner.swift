@@ -4,10 +4,14 @@ struct DisplayWindowLayout {
     static let designSize = DisplaySize(width: 1_280, height: 720)
 
     static func targetFrame(for display: DisplayDescriptor) -> DisplayFrame {
-        display.frame
+        fittedFrame(for: display)
     }
 
     static func fallbackFrame(for display: DisplayDescriptor) -> DisplayFrame {
+        fittedFrame(for: display)
+    }
+
+    private static func fittedFrame(for display: DisplayDescriptor) -> DisplayFrame {
         let available = display.visibleFrame
         let scale = min(
             1,
@@ -22,6 +26,12 @@ struct DisplayWindowLayout {
             width: width,
             height: height
         )
+    }
+}
+
+struct DisplayWindowStyle {
+    static func regularStyleMask(from originalStyleMask: NSWindow.StyleMask) -> NSWindow.StyleMask {
+        originalStyleMask.union([.titled, .closable, .miniaturizable, .resizable])
     }
 }
 
@@ -75,19 +85,16 @@ final class AppKitDisplayWindowPositioner: DisplayWindowPositioning {
             return
         }
 
-        if request.isFallback {
-            if let originalStyleMask {
-                window.styleMask = originalStyleMask
-            }
-            if let originalCollectionBehavior {
-                window.collectionBehavior = originalCollectionBehavior
-            }
-            window.isMovable = true
-        } else {
-            window.styleMask = [.borderless]
-            window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
-            window.isMovable = false
+        // Preserve a regular macOS window on both the selected display and the fallback display.
+        // In particular, keeping the titled and resizable masks makes the native green full-screen
+        // control available instead of simulating full screen with a borderless display-sized frame.
+        if let originalStyleMask {
+            window.styleMask = DisplayWindowStyle.regularStyleMask(from: originalStyleMask)
         }
+        if let originalCollectionBehavior {
+            window.collectionBehavior = originalCollectionBehavior
+        }
+        window.isMovable = true
 
         let frame =
             request.isFallback
