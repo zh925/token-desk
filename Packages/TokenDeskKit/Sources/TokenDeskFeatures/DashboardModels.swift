@@ -446,7 +446,22 @@ public enum DashboardFixtures {
         .init(id: "minimax", name: "MiniMax", status: .connected),
         .init(id: "openrouter", name: "OpenRouter", status: .warning),
         .init(id: "gemini", name: "Gemini", status: .connected),
+        .init(id: "codex", name: "Codex", status: .unavailable),
     ]
+
+    /// Returns the Provider-specific demo state without inventing values for unsupported Codex.
+    public static func tokenContentState(
+        providerID: String,
+        range: TokenTimeRange
+    ) -> DashboardContentState<TokenDashboardSnapshot> {
+        guard providerID != "codex" else {
+            return .empty(
+                title: "官方生产接口暂不可用",
+                detail: "GATE-02 关闭期间不读取 Cookie、私有容器或真实额度。"
+            )
+        }
+        return .loaded(tokens(providerID: providerID, range: range))
+    }
 
     /// Builds deterministic, internally consistent metrics for a provider and range.
     public static func tokens(providerID: String, range: TokenTimeRange) -> TokenDashboardSnapshot {

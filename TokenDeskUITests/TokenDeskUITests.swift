@@ -61,4 +61,31 @@ final class TokenDeskUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    func testAllNineProvidersCanSwitchAndCodexRemainsValueFree() {
+        let application = XCUIApplication()
+        application.launch()
+
+        XCTAssertTrue(application.staticTexts["总览页面"].waitForExistence(timeout: 2))
+        application.typeKey("3", modifierFlags: [])
+        XCTAssertTrue(application.staticTexts["Token页面"].waitForExistence(timeout: 1))
+
+        let providerIDs = [
+            "openai", "anthropic", "deepseek", "glm", "kimi", "minimax", "openrouter", "gemini",
+            "codex",
+        ]
+        for providerID in providerIDs {
+            let provider = application.buttons["token-provider-\(providerID)"]
+            XCTAssertTrue(provider.exists, "Missing Provider selector: \(providerID)")
+            provider.click()
+            XCTAssertTrue(provider.isSelected, "Provider did not become selected: \(providerID)")
+        }
+
+        XCTAssertTrue(application.staticTexts["官方生产接口暂不可用"].exists)
+        XCTAssertTrue(application.staticTexts["GATE-02 关闭期间不读取 Cookie、私有容器或真实额度。"].exists)
+        let inventedCodexValue = application.staticTexts.matching(
+            NSPredicate(format: "label CONTAINS 'Codex API'")
+        ).firstMatch
+        XCTAssertFalse(inventedCodexValue.exists)
+    }
 }

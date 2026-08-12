@@ -103,6 +103,57 @@ func tokenProviderAndRangeSelectionsUpdateTheWholeSnapshot() {
     #expect(rangeUpdate?.chartSummary.contains("DeepSeek") == true)
 }
 
+@Test @MainActor
+func allNineMVPProvidersAreSelectableWithoutInventingCodexValues() {
+    let expectedProviderIDs = [
+        "openai", "anthropic", "deepseek", "glm", "kimi", "minimax", "openrouter", "gemini",
+        "codex",
+    ]
+    let store = TokensPageStore()
+
+    #expect(store.providers.map(\.id) == expectedProviderIDs)
+    for providerID in expectedProviderIDs {
+        store.selectProvider(providerID)
+        #expect(store.selectedProviderID == providerID)
+    }
+    #expect(store.providers.last?.status == .unavailable)
+    #expect(
+        store.contentState
+            == .empty(
+                title: "官方生产接口暂不可用",
+                detail: "GATE-02 关闭期间不读取 Cookie、私有容器或真实额度。"
+            )
+    )
+
+    store.selectRange(.month)
+    #expect(store.selectedProviderID == "codex")
+    #expect(
+        store.contentState
+            == .empty(
+                title: "官方生产接口暂不可用",
+                detail: "GATE-02 关闭期间不读取 Cookie、私有容器或真实额度。"
+            )
+    )
+}
+
+@Test
+func providerSettingsCatalogMatchesCapabilitiesAndExcludesCredentiallessCodex() {
+    let capabilitiesByProvider = Dictionary(
+        uniqueKeysWithValues: ProviderSettingsOption.supported.map { ($0.id, Set($0.capabilities)) }
+    )
+
+    #expect(capabilitiesByProvider.count == 8)
+    #expect(capabilitiesByProvider["openai"] == [.usage, .cost])
+    #expect(capabilitiesByProvider["anthropic"] == [.usage, .cost])
+    #expect(capabilitiesByProvider["deepseek"] == [.usage, .cost, .balance, .localEstimate])
+    #expect(capabilitiesByProvider["kimi"] == [.usage, .cost, .balance, .localEstimate])
+    #expect(capabilitiesByProvider["openrouter"] == [.balance])
+    #expect(capabilitiesByProvider["glm"] == [.usage, .localEstimate])
+    #expect(capabilitiesByProvider["minimax"] == [.usage, .localEstimate])
+    #expect(capabilitiesByProvider["gemini"] == [.usage, .localEstimate])
+    #expect(capabilitiesByProvider["codex"] == nil)
+}
+
 @Test
 func clockFormattingHonorsExplicitTimezoneAcrossDaylightSavingChange() throws {
     let utc = try #require(TimeZone(identifier: "UTC"))
