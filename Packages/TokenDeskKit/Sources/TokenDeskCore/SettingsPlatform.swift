@@ -17,6 +17,35 @@ public enum LaunchAtLoginStatus: String, Equatable, Sendable {
     case unavailable
 }
 
+/// Privacy-minimized display information rendered by settings.
+public struct SettingsDisplayTarget: Equatable, Identifiable, Sendable {
+    /// Transient runtime display identifier.
+    public let id: UInt32
+    /// Privacy-minimized display name.
+    public let name: String
+    /// Current logical width in points.
+    public let logicalWidth: Int
+    /// Current logical height in points.
+    public let logicalHeight: Int
+    /// Whether the controller currently targets this display.
+    public let isSelected: Bool
+
+    /// Creates a display snapshot for the settings picker.
+    public init(
+        id: UInt32,
+        name: String,
+        logicalWidth: Int,
+        logicalHeight: Int,
+        isSelected: Bool
+    ) {
+        self.id = id
+        self.name = name
+        self.logicalWidth = logicalWidth
+        self.logicalHeight = logicalHeight
+        self.isSelected = isSelected
+    }
+}
+
 /// Supported single-file history export formats.
 public enum HistoryExportFormat: String, CaseIterable, Codable, Equatable, Hashable, Sendable {
     case csv
@@ -40,6 +69,8 @@ public struct SettingsPreferences: Codable, Equatable, Sendable {
     public var timeZoneOverrideIdentifier: String?
     /// Weather refresh cadence in whole minutes.
     public var weatherRefreshMinutes: Int
+    /// Public, sandbox-compatible weather connector identifier.
+    public var weatherProvider: String
     /// Whether the dashboard should display hourly conditions.
     public var showsHourlyWeather: Bool
     /// User preference for local alerts; false unless authorization was granted.
@@ -52,6 +83,7 @@ public struct SettingsPreferences: Codable, Equatable, Sendable {
         manualCity: String = "",
         timeZoneOverrideIdentifier: String? = nil,
         weatherRefreshMinutes: Int = 15,
+        weatherProvider: String = "open-meteo",
         showsHourlyWeather: Bool = true,
         alertsEnabled: Bool = false,
         exportFormat: HistoryExportFormat = .csv
@@ -59,9 +91,51 @@ public struct SettingsPreferences: Codable, Equatable, Sendable {
         self.manualCity = manualCity
         self.timeZoneOverrideIdentifier = timeZoneOverrideIdentifier
         self.weatherRefreshMinutes = weatherRefreshMinutes
+        self.weatherProvider = weatherProvider
         self.showsHourlyWeather = showsHourlyWeather
         self.alertsEnabled = alertsEnabled
         self.exportFormat = exportFormat
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case manualCity
+        case timeZoneOverrideIdentifier
+        case weatherRefreshMinutes
+        case weatherProvider
+        case showsHourlyWeather
+        case alertsEnabled
+        case exportFormat
+    }
+
+    /// Decodes preferences while supplying defaults for values added in later app versions.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        manualCity = try container.decodeIfPresent(String.self, forKey: .manualCity) ?? ""
+        timeZoneOverrideIdentifier = try container.decodeIfPresent(
+            String.self,
+            forKey: .timeZoneOverrideIdentifier
+        )
+        weatherRefreshMinutes =
+            try container.decodeIfPresent(
+                Int.self,
+                forKey: .weatherRefreshMinutes
+            ) ?? 15
+        weatherProvider =
+            try container.decodeIfPresent(
+                String.self,
+                forKey: .weatherProvider
+            ) ?? "open-meteo"
+        showsHourlyWeather =
+            try container.decodeIfPresent(
+                Bool.self,
+                forKey: .showsHourlyWeather
+            ) ?? true
+        alertsEnabled = try container.decodeIfPresent(Bool.self, forKey: .alertsEnabled) ?? false
+        exportFormat =
+            try container.decodeIfPresent(
+                HistoryExportFormat.self,
+                forKey: .exportFormat
+            ) ?? .csv
     }
 }
 
@@ -109,6 +183,13 @@ public protocol LaunchAtLoginServicing: AnyObject {
 
     /// Registers or unregisters the app after a user toggle.
     func setEnabled(_ isEnabled: Bool) throws
+}
+
+/// Target-display boundary that keeps SwiftUI independent from AppKit screen types.
+@MainActor
+public protocol DisplaySettingsServicing: AnyObject {
+    func availableTargets() -> [SettingsDisplayTarget]
+    func selectDisplay(runtimeID: UInt32?) throws
 }
 
 /// Sandboxed, user-selected single-file export boundary.

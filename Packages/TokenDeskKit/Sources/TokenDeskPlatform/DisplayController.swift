@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import TokenDeskCore
 
 /// Resolves the target display, persists manual selection, and restores window placement.
 ///
@@ -227,4 +228,42 @@ public final class DisplayController: NSObject, ObservableObject {
         recoveryTimer = nil
         recoveryDeadline = nil
     }
+}
+
+extension DisplayController: DisplaySettingsServicing {
+    /// Maps live AppKit displays into privacy-minimized settings snapshots.
+    public func availableTargets() -> [SettingsDisplayTarget] {
+        let selectedRuntimeID: UInt32? =
+            switch state {
+            case .target(let display, .rememberedManualSelection): display.runtimeId
+            case .target(_, .automatic): nil
+            case .fallback, .stopped: nil
+            }
+        return availableDisplays.map { display in
+            SettingsDisplayTarget(
+                id: display.runtimeId,
+                name: display.name,
+                logicalWidth: Int(display.logicalSize?.width ?? display.frame.width),
+                logicalHeight: Int(display.logicalSize?.height ?? display.frame.height),
+                isSelected: display.runtimeId == selectedRuntimeID
+            )
+        }
+    }
+
+    /// Applies a transient manual selection or restores automatic Wokyis matching.
+    public func selectDisplay(runtimeID: UInt32?) throws {
+        guard let runtimeID else {
+            useAutomaticSelection()
+            return
+        }
+        guard selectDisplay(runtimeId: runtimeID) else {
+            throw DisplaySettingsError.targetDisconnected
+        }
+    }
+}
+
+private enum DisplaySettingsError: LocalizedError {
+    case targetDisconnected
+
+    var errorDescription: String? { "目标屏幕已断开；保留原显示设置，请重新选择。" }
 }
