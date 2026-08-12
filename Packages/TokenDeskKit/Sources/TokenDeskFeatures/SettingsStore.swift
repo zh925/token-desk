@@ -174,6 +174,15 @@ public final class SettingsStore {
         await reloadHistoryStorage()
     }
 
+    /// Restores platform state and resolves a saved manual city for cache/network weather reads.
+    func prepareWeatherLocation() async {
+        await refreshSystemState()
+        guard resolvedLocation == nil else { return }
+        let city = preferences.manualCity.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !city.isEmpty else { return }
+        resolvedLocation = try? await locationService.resolve(city: city)
+    }
+
     func savePlatformChanges() {
         do {
             let previousDisplayID = persistedDisplayRuntimeID

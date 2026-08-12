@@ -72,12 +72,32 @@ public struct GRDBWeatherRepository: WeatherRepository, Sendable {
         now: Date,
         staleAfter: Duration
     ) throws -> WeatherSnapshot? {
+        try cachedWeather(matching: locationKey, now: now, staleAfter: staleAfter)
+    }
+
+    /// Returns the single cache slot before a saved city has been geocoded on this launch.
+    public func latestCachedWeather(
+        now: Date,
+        staleAfter: Duration
+    ) throws -> WeatherSnapshot? {
+        try cachedWeather(matching: nil, now: now, staleAfter: staleAfter)
+    }
+
+    private func cachedWeather(
+        matching locationKey: String?,
+        now: Date,
+        staleAfter: Duration
+    ) throws -> WeatherSnapshot? {
         try writer.read { database in
+            let sql =
+                locationKey == nil
+                ? "SELECT * FROM weather_cache WHERE cache_slot = 1"
+                : "SELECT * FROM weather_cache WHERE cache_slot = 1 AND location_key = ?"
             guard
                 let row = try Row.fetchOne(
                     database,
-                    sql: "SELECT * FROM weather_cache WHERE cache_slot = 1 AND location_key = ?",
-                    arguments: [locationKey]
+                    sql: sql,
+                    arguments: locationKey.map { [$0] } ?? []
                 )
             else {
                 return nil

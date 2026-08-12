@@ -54,48 +54,69 @@ public struct OverviewPage: View {
         .frame(height: 248)
     }
 
-    private func weatherPanel(_ weather: WeatherSnapshot) -> some View {
-        TokenDeskPanel("\(weather.city)天气 · MOCK") {
-            VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.small) {
-                HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.extraSmall) {
-                        Text("\(weather.temperature)°")
-                            .font(TokenDeskTextStyle.primaryMetric.font)
-                        Text("\(weather.condition) · 体感 \(weather.feelsLike)°")
-                            .font(TokenDeskTextStyle.body.font)
-                        Text("降雨 \(weather.precipitationPercent)% · 湿度 \(weather.humidityPercent)%")
+    @ViewBuilder
+    private func weatherPanel(_ weather: WeatherSnapshot?) -> some View {
+        if let weather {
+            TokenDeskPanel("\(weather.city)天气 · 官方数据") {
+                VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.small) {
+                    HStack(alignment: .top) {
+                        VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.extraSmall) {
+                            Text("\(weather.temperature)°")
+                                .font(TokenDeskTextStyle.primaryMetric.font)
+                            Text("\(weather.condition) · 体感 \(weather.feelsLike)°")
+                                .font(TokenDeskTextStyle.body.font)
+                            Text(
+                                "降雨 \(weather.precipitationPercent)% · 湿度 \(weather.humidityPercent)%"
+                            )
                             .font(TokenDeskTextStyle.auxiliary.font)
-                    }
-                    Spacer()
-                    Text("☀")
-                        .font(.system(size: 46))
-                        .accessibilityHidden(true)
-                }
-                Divider()
-                HStack(spacing: 0) {
-                    ForEach(weather.hours) { hour in
-                        VStack(spacing: 3) {
-                            Text(hour.label)
-                            Text(hour.symbol).font(.system(size: 20))
-                            Text("\(hour.temperature)°").bold()
                         }
-                        .font(TokenDeskTextStyle.auxiliary.font)
-                        .frame(maxWidth: .infinity)
-                        .accessibilityElement(children: .combine)
+                        Spacer()
+                        Text("☀")
+                            .font(.system(size: 46))
+                            .accessibilityHidden(true)
+                    }
+                    Divider()
+                    HStack(spacing: 0) {
+                        ForEach(weather.hours) { hour in
+                            VStack(spacing: 3) {
+                                Text(hour.label)
+                                Text(hour.symbol).font(.system(size: 20))
+                                Text("\(hour.temperature)°").bold()
+                            }
+                            .font(TokenDeskTextStyle.auxiliary.font)
+                            .frame(maxWidth: .infinity)
+                            .accessibilityElement(children: .combine)
+                        }
                     }
                 }
             }
+            .frame(maxHeight: .infinity)
+        } else {
+            TokenDeskPanel("天气") {
+                StateMessageContent(
+                    title: "尚无天气数据",
+                    detail: "在设置中选择当前位置或验证手工城市。"
+                )
+            }
+            .frame(maxHeight: .infinity)
         }
-        .frame(maxHeight: .infinity)
     }
 
     private func usagePanel(_ snapshot: OverviewSnapshot) -> some View {
-        TokenDeskPanel("今日用量 · MOCK / DEMO") {
+        TokenDeskPanel("今日用量 · 生产数据") {
             VStack(spacing: TokenDeskDesign.Spacing.medium) {
                 Text("总览页面")
                     .font(TokenDeskTextStyle.auxiliary.font)
                     .frame(maxWidth: .infinity, alignment: .leading)
-                planSummary(snapshot.primaryPlan)
+                if let primaryPlan = snapshot.primaryPlan {
+                    planSummary(primaryPlan)
+                } else {
+                    StateMessageContent(
+                        title: "尚无套餐窗口",
+                        detail: "不支持套餐的 Provider 不会生成额度数值。"
+                    )
+                    .frame(height: 142)
+                }
                 ForEach(snapshot.providers) { provider in
                     providerSummary(provider)
                 }
@@ -166,6 +187,22 @@ public struct OverviewPage: View {
                 .lineLimit(2)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+private struct StateMessageContent: View {
+    let title: String
+    let detail: String
+
+    var body: some View {
+        VStack(spacing: TokenDeskDesign.Spacing.small) {
+            Text(title).font(TokenDeskTextStyle.cardTitle.font)
+            Text(detail)
+                .font(TokenDeskTextStyle.auxiliary.font)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .accessibilityElement(children: .combine)
     }
 }

@@ -6,7 +6,7 @@ public struct TokenDeskAppShell: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var router: AppRouter
     @State private var clock: DashboardClock
-    @State private var tokensStore: TokensPageStore
+    @State private var dashboardStore: DashboardStore
     @State private var settingsStore: SettingsStore
 
     /// Creates an application shell with injectable state for tests and previews.
@@ -14,19 +14,21 @@ public struct TokenDeskAppShell: View {
     public init(
         router: AppRouter = AppRouter(),
         clock: DashboardClock = DashboardClock(),
-        tokensStore: TokensPageStore = TokensPageStore(),
+        dashboardStore: DashboardStore = DashboardStore(),
         settingsStore: SettingsStore = SettingsStore()
     ) {
         _router = State(initialValue: router)
         _clock = State(initialValue: clock)
-        _tokensStore = State(initialValue: tokensStore)
+        _dashboardStore = State(initialValue: dashboardStore)
         _settingsStore = State(initialValue: settingsStore)
     }
 
     /// The header and current route content, clipped to the design canvas.
     public var body: some View {
         VStack(spacing: 0) {
-            AppHeader(router: router)
+            AppHeader(router: router, dashboardStore: dashboardStore) {
+                await dashboardStore.refresh(location: settingsStore.resolvedLocation)
+            }
             routeContent
                 .id(router.route)
         }
@@ -38,6 +40,8 @@ public struct TokenDeskAppShell: View {
         .accessibilityIdentifier("app-shell-canvas")
         .task {
             clock.start()
+            await settingsStore.prepareWeatherLocation()
+            await dashboardStore.start(location: settingsStore.resolvedLocation)
         }
         .onDisappear {
             clock.stop()
@@ -45,6 +49,9 @@ public struct TokenDeskAppShell: View {
         .onChange(of: scenePhase) { _, newPhase in
             if newPhase == .active {
                 clock.resume()
+                Task {
+                    await dashboardStore.refresh(location: settingsStore.resolvedLocation)
+                }
             }
         }
     }
@@ -54,11 +61,14 @@ public struct TokenDeskAppShell: View {
         Group {
             switch router.route {
             case .overview:
-                OverviewPage(clock: clock)
+                OverviewPage(state: dashboardStore.overviewState, clock: clock)
             case .plans:
-                PlansPage()
+                PlansPage(
+                    state: dashboardStore.plansState,
+                    capabilityStatuses: dashboardStore.capabilityStatuses
+                )
             case .tokens:
-                TokensPage(store: tokensStore)
+                TokensPage(store: dashboardStore.tokensStore)
             case .settings:
                 SettingsPage(store: settingsStore, clock: clock)
             }

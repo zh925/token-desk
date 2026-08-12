@@ -2,7 +2,7 @@ import Foundation
 import TokenDeskCore
 import TokenDeskDesign
 
-/// The five render states shared by dashboard pages before production data is connected.
+/// The complete cache-first render matrix shared by production dashboard pages.
 public enum DashboardContentState<Value: Equatable & Sendable>: Equatable, Sendable {
     /// No display value is available while an asynchronous read is in flight.
     case loading
@@ -12,8 +12,40 @@ public enum DashboardContentState<Value: Equatable & Sendable>: Equatable, Senda
     case loaded(Value)
     /// Cached display values are available but past their freshness window.
     case stale(Value, lastUpdated: Date)
+    /// Some independent sources failed while other production values remain readable.
+    case partial(Value, issues: [DashboardIssue])
     /// A read failed, optionally retaining its last successful value.
     case failed(title: String, detail: String, cached: Value?)
+}
+
+/// A redacted, actionable degradation shown without exposing transport payloads.
+public struct DashboardIssue: Equatable, Identifiable, Sendable {
+    /// Stable failure categories used by presentation and accessibility text.
+    public enum Kind: String, Equatable, Sendable {
+        case authentication
+        case permission
+        case rateLimited
+        case offline
+        case unavailable
+        case persistence
+    }
+
+    /// Provider identifier, or a stable local subsystem identifier.
+    public let id: String
+    /// Presentation-safe provider or subsystem name.
+    public let providerName: String
+    /// Normalized actionable category.
+    public let kind: Kind
+    /// Redacted recovery guidance.
+    public let message: String
+
+    /// Creates a redacted dashboard degradation.
+    public init(id: String, providerName: String, kind: Kind, message: String) {
+        self.id = id
+        self.providerName = providerName
+        self.kind = kind
+        self.message = message
+    }
 }
 
 /// Weather values rendered by the overview without exposing provider DTOs.
@@ -193,16 +225,16 @@ public struct ProviderSummarySnapshot: Equatable, Identifiable, Sendable {
 /// Complete immutable value rendered by the overview page.
 public struct OverviewSnapshot: Equatable, Sendable {
     /// Current and hourly weather values.
-    public let weather: WeatherSnapshot
+    public let weather: WeatherSnapshot?
     /// User-selected primary plan window.
-    public let primaryPlan: PlanWindowSnapshot
+    public let primaryPlan: PlanWindowSnapshot?
     /// Token, cost, and balance provider summaries.
     public let providers: [ProviderSummarySnapshot]
 
     /// Creates a complete overview snapshot.
     public init(
-        weather: WeatherSnapshot,
-        primaryPlan: PlanWindowSnapshot,
+        weather: WeatherSnapshot?,
+        primaryPlan: PlanWindowSnapshot?,
         providers: [ProviderSummarySnapshot]
     ) {
         self.weather = weather

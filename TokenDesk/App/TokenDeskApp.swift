@@ -10,6 +10,7 @@ import TokenDeskPlatform
 struct TokenDeskApp: App {
     @StateObject private var displayController: DisplayController
     @State private var clock: DashboardClock
+    @State private var dashboardStore: DashboardStore
     @State private var settingsStore: SettingsStore
 
     init() {
@@ -23,6 +24,9 @@ struct TokenDeskApp: App {
             )
         )
         let providerServices = ApplicationProviderServices()
+        _dashboardStore = State(
+            initialValue: DashboardStore(dataProvider: providerServices)
+        )
         _settingsStore = State(
             initialValue: SettingsStore(
                 preferencesStore: preferencesStore,
@@ -41,7 +45,11 @@ struct TokenDeskApp: App {
     var body: some Scene {
         WindowGroup {
             DisplayCanvas {
-                ContentView(clock: clock, settingsStore: settingsStore)
+                ContentView(
+                    clock: clock,
+                    dashboardStore: dashboardStore,
+                    settingsStore: settingsStore
+                )
             }
             .background(DisplayWindowAttachment(controller: displayController))
             .onAppear {
@@ -57,12 +65,15 @@ struct TokenDeskApp: App {
 
 /// Lazily opens SQLite away from the main actor before serving Provider settings work.
 private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConnectionTesting,
-    HistoryDataServicing
+    HistoryDataServicing, DashboardDataProviding
 {
     private let credentialStore = KeychainCredentialStore()
     private var manager: GRDBProviderAccountManager?
     private var tester: OfficialProviderConnectionTester?
     private var historyDataService: GRDBHistoryDataService?
+    private var usageRepository: GRDBUsageRepository?
+    private var weatherRepository: GRDBWeatherRepository?
+    private var pricingCatalog: GRDBPricingCatalog?
 
     func configurations() async throws -> [ProviderAccountConfiguration] {
         try await services().manager.configurations()
@@ -104,27 +115,228 @@ private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConn
         try await services().historyDataService.clearHistory(scope: scope)
     }
 
+    func loadCachedDashboardData() async throws -> DashboardDataSnapshot {
+        let services = try services()
+        let configurations = try await services.manager.configurations().filter(\.isEnabled)
+        let now = Date()
+        let interval = DateInterval(start: now.addingTimeInterval(-35 * 86_400), end: now)
+        var plans: [PlanWindow] = []
+        var usage: [TokenUsageBucket] = []
+        var costs: [CostSnapshot] = []
+        var balances: [BalanceSnapshot] = []
+        for configuration in configurations {
+            let account = try configuration.accountReference
+            plans += try services.usageRepository.cachedPlans(for: account, now: now)
+            balances += try services.usageRepository.cachedBalances(for: account)
+            costs += try services.usageRepository.cachedCosts(for: account, in: interval)
+            for granularity in [UsageGranularity.minute, .hour, .day] {
+                usage += try services.usageRepository.cachedUsage(
+                    for: account,
+                    in: interval,
+                    granularity: granularity
+                )
+            }
+        }
+        let weather = try services.weatherRepository.latestCachedWeather(
+            now: now,
+            staleAfter: WeatherSyncCoordinator.staleAfter
+        )
+        return DashboardDataSnapshot(
+            configurations: configurations,
+            plans: plans,
+            usage: usage,
+            costs: costs,
+            balances: balances,
+            weather: weather
+        )
+    }
+
+    func refreshDashboardData(location: WeatherLocation?) async -> DashboardRefreshResult {
+        let startedAt = Date()
+        do {
+            let services = try services()
+            let configurations = try await services.manager.configurations().filter(\.isEnabled)
+            let grouped = Dictionary(grouping: configurations, by: \.providerID)
+            var connectors: [any ProviderConnector] = []
+            var accountsByProvider: [ProviderID: [AccountReference]] = [:]
+            for providerID in grouped.keys.sorted(by: { $0.rawValue < $1.rawValue }) {
+                guard let values = grouped[providerID], let configuration = values.first else {
+                    continue
+                }
+                connectors.append(try makeConnector(for: configuration, services: services))
+                accountsByProvider[providerID] = try values.map { try $0.accountReference }
+            }
+            let registry = try ProviderConnectorRegistry(connectors: connectors)
+            let report = await SyncCoordinator(
+                registry: registry,
+                repository: services.usageRepository
+            ).manualSync(
+                accountsByProvider: accountsByProvider,
+                interval: DateInterval(
+                    start: startedAt.addingTimeInterval(-35 * 86_400),
+                    end: startedAt
+                )
+            )
+            let weatherResult: WeatherSyncResult?
+            if let location {
+                do {
+                    weatherResult = try await WeatherSyncCoordinator(
+                        service: OpenMeteoConnector(),
+                        repository: services.weatherRepository
+                    ).sync(location: location)
+                } catch is CancellationError {
+                    weatherResult = WeatherSyncResult(
+                        state: .unavailable,
+                        snapshot: nil,
+                        failure: .cancelled
+                    )
+                } catch {
+                    weatherResult = WeatherSyncResult(
+                        state: .unavailable,
+                        snapshot: nil,
+                        failure: .server(statusCode: nil)
+                    )
+                }
+            } else {
+                weatherResult = nil
+            }
+            return DashboardRefreshResult(
+                providerReport: report,
+                weatherResult: weatherResult
+            )
+        } catch {
+            return DashboardRefreshResult(
+                providerReport: SyncReport(
+                    startedAt: startedAt,
+                    completedAt: Date(),
+                    providers: []
+                ),
+                weatherResult: nil
+            )
+        }
+    }
+
     private func services() throws -> (
         manager: GRDBProviderAccountManager,
         tester: OfficialProviderConnectionTester,
-        historyDataService: GRDBHistoryDataService
+        historyDataService: GRDBHistoryDataService,
+        usageRepository: GRDBUsageRepository,
+        weatherRepository: GRDBWeatherRepository,
+        pricingCatalog: GRDBPricingCatalog
     ) {
-        if let manager, let tester, let historyDataService {
-            return (manager, tester, historyDataService)
+        if let manager, let tester, let historyDataService, let usageRepository,
+            let weatherRepository, let pricingCatalog
+        {
+            return (
+                manager, tester, historyDataService, usageRepository, weatherRepository,
+                pricingCatalog
+            )
         }
         let database = try TokenDeskDatabase.openApplicationDatabase()
+        let usageRepository = GRDBUsageRepository(writer: database)
+        let weatherRepository = GRDBWeatherRepository(writer: database)
+        let pricingCatalog = GRDBPricingCatalog(writer: database)
         let manager = GRDBProviderAccountManager(
             writer: database,
             credentialStore: credentialStore
         )
         let tester = OfficialProviderConnectionTester(
             credentialStore: credentialStore,
-            localUsageRepository: GRDBUsageRepository(writer: database)
+            localUsageRepository: usageRepository
         )
         let historyDataService = GRDBHistoryDataService(writer: database)
         self.manager = manager
         self.tester = tester
         self.historyDataService = historyDataService
-        return (manager, tester, historyDataService)
+        self.usageRepository = usageRepository
+        self.weatherRepository = weatherRepository
+        self.pricingCatalog = pricingCatalog
+        return (
+            manager, tester, historyDataService, usageRepository, weatherRepository,
+            pricingCatalog
+        )
+    }
+
+    private func makeConnector(
+        for configuration: ProviderAccountConfiguration,
+        services: (
+            manager: GRDBProviderAccountManager,
+            tester: OfficialProviderConnectionTester,
+            historyDataService: GRDBHistoryDataService,
+            usageRepository: GRDBUsageRepository,
+            weatherRepository: GRDBWeatherRepository,
+            pricingCatalog: GRDBPricingCatalog
+        )
+    ) throws -> any ProviderConnector {
+        let type = configuration.providerType.rawValue.lowercased()
+        let capabilities: Set<ProviderCapability> =
+            switch type {
+            case "openai", "anthropic": [.usage, .cost]
+            case "deepseek", "kimi": [.usage, .cost, .balance, .localEstimate]
+            case "openrouter": [.balance]
+            case "glm", "minimax", "gemini": [.usage, .cost, .localEstimate]
+            default: []
+            }
+        let descriptor = try ProviderDescriptor(
+            id: configuration.providerID,
+            type: configuration.providerType,
+            displayName: configuration.providerDisplayName,
+            capabilities: ProviderCapabilities(capabilities)
+        )
+        switch type {
+        case "openai":
+            return OpenAIConnector(descriptor: descriptor, credentialStore: credentialStore)
+        case "anthropic":
+            return AnthropicConnector(descriptor: descriptor, credentialStore: credentialStore)
+        case "deepseek":
+            return DeepSeekConnector(
+                descriptor: descriptor,
+                credentialStore: credentialStore,
+                localUsageRepository: services.usageRepository,
+                pricingCatalog: services.pricingCatalog,
+                estimatedCostCurrency: try CurrencyCode(rawValue: "CNY")
+            )
+        case "kimi":
+            return KimiConnector(
+                descriptor: descriptor,
+                credentialStore: credentialStore,
+                localUsageRepository: services.usageRepository,
+                balanceCurrency: try CurrencyCode(rawValue: "CNY"),
+                pricingCatalog: services.pricingCatalog,
+                estimatedCostCurrency: try CurrencyCode(rawValue: "CNY")
+            )
+        case "openrouter":
+            return OpenRouterConnector(
+                descriptor: descriptor,
+                credentialStore: credentialStore,
+                creditCurrency: try CurrencyCode(rawValue: "USD")
+            )
+        case "glm":
+            return GLMConnector(
+                descriptor: descriptor,
+                credentialStore: credentialStore,
+                localUsageRepository: services.usageRepository,
+                pricingCatalog: services.pricingCatalog,
+                estimatedCostCurrency: try CurrencyCode(rawValue: "CNY")
+            )
+        case "minimax":
+            return MiniMaxConnector(
+                descriptor: descriptor,
+                credentialStore: credentialStore,
+                localUsageRepository: services.usageRepository,
+                pricingCatalog: services.pricingCatalog,
+                estimatedCostCurrency: try CurrencyCode(rawValue: "CNY")
+            )
+        case "gemini":
+            return GeminiConnector(
+                descriptor: descriptor,
+                credentialStore: credentialStore,
+                localUsageRepository: services.usageRepository,
+                pricingCatalog: services.pricingCatalog,
+                estimatedCostCurrency: try CurrencyCode(rawValue: "USD")
+            )
+        default:
+            return CodexP0Connector(descriptor: descriptor)
+        }
     }
 }

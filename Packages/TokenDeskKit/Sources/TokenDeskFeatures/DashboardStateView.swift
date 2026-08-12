@@ -22,6 +22,14 @@ struct DashboardStateView<Value: Equatable & Sendable, Content: View>: View {
                 )
                 content(value)
             }
+        case .partial(let value, let issues):
+            VStack(spacing: TokenDeskDesign.Spacing.small) {
+                statusBanner(
+                    symbol: "!",
+                    text: partialDescription(issues)
+                )
+                content(value)
+            }
         case .failed(let title, let detail, let cached):
             if let cached {
                 VStack(spacing: TokenDeskDesign.Spacing.small) {
@@ -32,6 +40,12 @@ struct DashboardStateView<Value: Equatable & Sendable, Content: View>: View {
                 StateMessage(symbol: "×", title: title, detail: detail)
             }
         }
+    }
+
+    private func partialDescription(_ issues: [DashboardIssue]) -> String {
+        guard let first = issues.first else { return "部分数据不可用 · 其余数据保持可读" }
+        let suffix = issues.count > 1 ? " · 另有 \(issues.count - 1) 项" : ""
+        return "\(first.providerName) · \(first.message)\(suffix)"
     }
 
     private func statusBanner(symbol: String, text: String) -> some View {

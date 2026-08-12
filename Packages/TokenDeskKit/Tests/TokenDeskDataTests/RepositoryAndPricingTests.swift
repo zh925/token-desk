@@ -128,6 +128,44 @@ func repositoryPersistsOptionalCumulativeCreditDetailsSeparatelyFromAvailableBal
     #expect(values?["available_amount_decimal"] as String? == "21.25")
     #expect(values?["total_credited_amount_decimal"] as String? == "25.5")
     #expect(values?["total_consumed_amount_decimal"] as String? == "4.25")
+    #expect(try fixture.repository.cachedBalances(for: fixture.account) == [balance])
+}
+
+@Test
+func repositoryReturnsOnlyCurrentPlanWindowsForDashboardCache() throws {
+    let fixture = try RepositoryFixture()
+    let now = Date(timeIntervalSince1970: 1_800_000_000)
+    let metadata = ObservationMetadata(
+        source: try DataSource(kind: .estimated, identifier: "local_plan_estimate"),
+        updatedAt: now,
+        isStale: false
+    )
+    let current = try PlanWindow(
+        providerID: fixture.providerID,
+        accountID: fixture.account.id,
+        planName: "Current",
+        limitIdentifier: "primary",
+        usedPercent: UsagePercent(rawValue: 42),
+        windowDurationMinutes: 300,
+        resetsAt: now.addingTimeInterval(3_600),
+        timeZoneIdentifier: "UTC",
+        confidence: SourceConfidence(rawValue: Decimal(string: "0.8")!),
+        metadata: metadata
+    )
+    let expired = try PlanWindow(
+        providerID: fixture.providerID,
+        accountID: fixture.account.id,
+        planName: "Expired",
+        limitIdentifier: "old",
+        usedPercent: UsagePercent(rawValue: 100),
+        windowDurationMinutes: 300,
+        resetsAt: now.addingTimeInterval(-1),
+        timeZoneIdentifier: "UTC",
+        metadata: metadata
+    )
+    try fixture.repository.savePlans([current, expired])
+
+    #expect(try fixture.repository.cachedPlans(for: fixture.account, now: now) == [current])
 }
 
 @Test
