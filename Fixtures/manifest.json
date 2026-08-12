@@ -14,6 +14,42 @@
       "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
     },
     {
+      "path": "v1/gemini/usage.success.json",
+      "capability": "usage",
+      "outcome": "success",
+      "scenario": "generateContent usage metadata with cached input and thinking tokens",
+      "source": "https://ai.google.dev/api/generate-content",
+      "sourceVersion": "documentation reviewed 2026-08-12",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/glm/usage.success.json",
+      "capability": "usage",
+      "outcome": "success",
+      "scenario": "chat completion response usage with cached prompt tokens",
+      "source": "https://docs.bigmodel.cn/api-reference/%E6%A8%A1%E5%9E%8B-api/%E5%AF%B9%E8%AF%9D%E8%A1%A5%E5%85%A8",
+      "sourceVersion": "documentation reviewed 2026-08-12",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
+      "path": "v1/minimax/usage.success.json",
+      "capability": "usage",
+      "outcome": "success",
+      "scenario": "text response usage with separate prompt and completion tokens",
+      "source": "https://platform.minimax.io/docs/api-reference/text-post",
+      "sourceVersion": "documentation reviewed 2026-08-12",
+      "provenance": "documentation-derived-synthetic",
+      "realAccountVerified": false,
+      "redactionReviewed": true,
+      "redactions": ["credentials", "email", "remote-account-identifiers", "request-body"]
+    },
+    {
       "path": "v1/openai/usage.success.json",
       "capability": "usage",
       "outcome": "success",

@@ -199,6 +199,220 @@ final class KimiConnectorContractTests: ProviderConnectorContractTestCase {
     }
 }
 
+final class GeminiConnectorContractTests: ProviderConnectorContractTestCase {
+    func testUsageMetadataIsLocallyAggregatedAndThinkingRemainsOutput() async throws {
+        let descriptor = try makeDescriptor(
+            id: "gemini-primary",
+            type: "gemini",
+            capabilities: [.usage, .cost, .localEstimate]
+        )
+        let (account, credentialStore) = try makeAccountAndCredential(descriptor: descriptor)
+        let repository = InMemoryLocalUsageRepository()
+        let currency = try CurrencyCode(rawValue: "USD")
+        let connector = GeminiConnector(
+            descriptor: descriptor,
+            credentialStore: credentialStore,
+            localUsageRepository: repository,
+            pricingCatalog: try StaticPricingCatalog(
+                providerType: descriptor.type,
+                currency: currency,
+                model: "gemini-2.5-flash-example"
+            ),
+            estimatedCostCurrency: currency,
+            now: { Date(timeIntervalSince1970: 1_768_500_000) }
+        )
+
+        try connector.recordResponseUsage(
+            from: fixtureData("v1/gemini/usage.success.json"),
+            for: account
+        )
+        try await assertConnectorContract(connector, account: account, interval: fixtureInterval)
+
+        let usage = try await connector.fetchUsage(for: account, in: fixtureInterval)
+        let bucket = try XCTUnwrap(usage.values.first)
+        XCTAssertEqual(bucket.tokens.input.rawValue, 1_000)
+        XCTAssertEqual(bucket.tokens.cachedInput.rawValue, 200)
+        XCTAssertEqual(bucket.tokens.output.rawValue, 400)
+        XCTAssertEqual(bucket.metadata.source.kind, .locallyAggregated)
+        let costs = try await connector.fetchCosts(for: account, in: fixtureInterval)
+        XCTAssertTrue(try XCTUnwrap(costs.values.first).isEstimated)
+    }
+
+    func testInconsistentGeminiTotalsAreRejectedWithoutHistory() throws {
+        let descriptor = try makeDescriptor(
+            id: "gemini-primary",
+            type: "gemini",
+            capabilities: [.usage]
+        )
+        let (account, credentialStore) = try makeAccountAndCredential(descriptor: descriptor)
+        let repository = InMemoryLocalUsageRepository()
+        let connector = GeminiConnector(
+            descriptor: descriptor,
+            credentialStore: credentialStore,
+            localUsageRepository: repository
+        )
+        let invalid = Data(
+            """
+            {"modelVersion":"gemini-example","usageMetadata":{"promptTokenCount":10,
+            "candidatesTokenCount":4,"thoughtsTokenCount":2,"totalTokenCount":15}}
+            """.utf8
+        )
+
+        XCTAssertThrowsError(try connector.recordResponseUsage(from: invalid, for: account)) {
+            XCTAssertEqual($0 as? ConnectorError, .decoding)
+        }
+        XCTAssertTrue(
+            try repository.cachedUsage(
+                for: account,
+                in: fixtureInterval,
+                granularity: .minute
+            ).isEmpty
+        )
+    }
+}
+
+final class GLMConnectorContractTests: ProviderConnectorContractTestCase {
+    func testDocumentedResponseUsageIsLocalAndPlanBalanceStayUnsupported() async throws {
+        let descriptor = try makeDescriptor(
+            id: "glm-primary",
+            type: "glm",
+            capabilities: [.usage, .cost, .localEstimate]
+        )
+        let (account, credentialStore) = try makeAccountAndCredential(
+            descriptor: descriptor,
+            workspace: "fixture-redacted"
+        )
+        let repository = InMemoryLocalUsageRepository()
+        let currency = try CurrencyCode(rawValue: "CNY")
+        let connector = GLMConnector(
+            descriptor: descriptor,
+            credentialStore: credentialStore,
+            localUsageRepository: repository,
+            pricingCatalog: try StaticPricingCatalog(
+                providerType: descriptor.type,
+                currency: currency,
+                model: "glm-4.7-example"
+            ),
+            estimatedCostCurrency: currency,
+            now: fixtureNow
+        )
+
+        try connector.recordResponseUsage(
+            from: fixtureData("v1/glm/usage.success.json"),
+            for: account
+        )
+        try await assertConnectorContract(connector, account: account, interval: fixtureInterval)
+
+        let usage = try await connector.fetchUsage(for: account, in: fixtureInterval)
+        let bucket = try XCTUnwrap(usage.values.first)
+        XCTAssertEqual(bucket.tokens.input.rawValue, 1_000)
+        XCTAssertEqual(bucket.tokens.cachedInput.rawValue, 200)
+        XCTAssertEqual(bucket.tokens.output.rawValue, 340)
+        XCTAssertEqual(bucket.workspaceReference, "fixture-redacted")
+        let plan = try await connector.fetchPlan(for: account)
+        let balance = try await connector.fetchBalance(for: account)
+        XCTAssertEqual(plan.state, .unsupported)
+        XCTAssertEqual(balance.state, .unsupported)
+    }
+}
+
+final class MiniMaxConnectorContractTests: ProviderConnectorContractTestCase {
+    func testResponseUsageIsLocalWhileTokenPlanAndBalanceRemainSeparate() async throws {
+        let descriptor = try makeDescriptor(
+            id: "minimax-primary",
+            type: "minimax",
+            capabilities: [.usage, .cost, .localEstimate]
+        )
+        let (account, credentialStore) = try makeAccountAndCredential(descriptor: descriptor)
+        let repository = InMemoryLocalUsageRepository()
+        let currency = try CurrencyCode(rawValue: "USD")
+        let connector = MiniMaxConnector(
+            descriptor: descriptor,
+            credentialStore: credentialStore,
+            localUsageRepository: repository,
+            pricingCatalog: try StaticPricingCatalog(
+                providerType: descriptor.type,
+                currency: currency,
+                model: "MiniMax-M2.7-example"
+            ),
+            estimatedCostCurrency: currency,
+            now: fixtureNow
+        )
+
+        try connector.recordResponseUsage(
+            from: fixtureData("v1/minimax/usage.success.json"),
+            for: account
+        )
+        try await assertConnectorContract(connector, account: account, interval: fixtureInterval)
+
+        let usage = try await connector.fetchUsage(for: account, in: fixtureInterval)
+        let bucket = try XCTUnwrap(usage.values.first)
+        XCTAssertEqual(bucket.tokens.input.rawValue, 1_000)
+        XCTAssertEqual(bucket.tokens.cachedInput.rawValue, 200)
+        XCTAssertEqual(bucket.tokens.output.rawValue, 340)
+        let plan = try await connector.fetchPlan(for: account)
+        let balance = try await connector.fetchBalance(for: account)
+        XCTAssertEqual(plan.state, .unsupported)
+        XCTAssertEqual(balance.state, .unsupported)
+    }
+
+    func testProviderBusinessFailureIsNotPersistedAsUsage() throws {
+        let descriptor = try makeDescriptor(
+            id: "minimax-primary",
+            type: "minimax",
+            capabilities: [.usage]
+        )
+        let (account, credentialStore) = try makeAccountAndCredential(descriptor: descriptor)
+        let connector = MiniMaxConnector(
+            descriptor: descriptor,
+            credentialStore: credentialStore,
+            localUsageRepository: InMemoryLocalUsageRepository()
+        )
+        let failed = Data(
+            """
+            {"created":1768500000,"model":"MiniMax-example","usage":{"prompt_tokens":1,
+            "completion_tokens":1,"total_tokens":2},"base_resp":{"status_code":1002}}
+            """.utf8
+        )
+
+        XCTAssertThrowsError(try connector.recordResponseUsage(from: failed, for: account)) {
+            XCTAssertEqual($0 as? ConnectorError, .server(statusCode: nil))
+        }
+    }
+}
+
+final class CodexP0ConnectorContractTests: ProviderConnectorContractTestCase {
+    func testGateClosedConnectorHasNoDataCapabilityOrCredentialSideEffect() async throws {
+        let descriptor = try makeDescriptor(
+            id: "codex-primary",
+            type: "codex",
+            capabilities: []
+        )
+        let (account, _) = try makeAccountAndCredential(descriptor: descriptor)
+        let connector = CodexP0Connector(descriptor: descriptor, now: fixtureNow)
+
+        try await assertConnectorContract(connector, account: account, interval: fixtureInterval)
+
+        let accounts = try await connector.fetchAccounts()
+        XCTAssertEqual(accounts.state, .unsupported)
+        let health = await connector.fetchHealth()
+        XCTAssertEqual(health.state, .unavailable)
+        XCTAssertEqual(health.failure, .unsupported(capability: .plan))
+    }
+
+    func testPlanFixtureCarriesPermanentDemonstrationMarker() throws {
+        let data = try fixtureData("v1/codex/plan.success.json")
+        let object = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: data) as? [String: Any]
+        )
+        let metadata = try XCTUnwrap(object["fixtureMetadata"] as? [String: Any])
+
+        XCTAssertEqual(metadata["mode"] as? String, "demonstration")
+        XCTAssertEqual(metadata["isRealAccountData"] as? Bool, false)
+        XCTAssertEqual(metadata["displayLabel"] as? String, "演示数据 · 不代表真实额度")
+    }
+}
+
 final class OpenRouterConnectorContractTests: ProviderConnectorContractTestCase {
     func testCreditTotalsAndAvailableBalanceSatisfyContract() async throws {
         let descriptor = try makeDescriptor(

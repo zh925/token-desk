@@ -1,4 +1,5 @@
 import Foundation
+import TokenDeskCore
 import TokenDeskDesign
 
 /// The five render states shared by dashboard pages before production data is connected.
@@ -120,6 +121,39 @@ public struct PlanWindowSnapshot: Equatable, Identifiable, Sendable {
         self.resetDescription = resetDescription
         self.source = source
         self.confidence = confidence
+    }
+}
+
+/// A value-free Provider capability state shown when no numeric card may be rendered.
+public struct ProviderCapabilityStatusSnapshot: Equatable, Identifiable, Sendable {
+    /// Stable presentation identifier.
+    public let id: String
+    /// Provider display name.
+    public let provider: String
+    /// Data operation described by this state.
+    public let capability: ProviderCapability
+    /// Value-free connector state.
+    public let state: ConnectorReadState
+    /// Short user-facing explanation.
+    public let title: String
+    /// Privacy-safe detail that does not imply a numeric value.
+    public let detail: String
+
+    /// Creates a value-free capability status for fallback presentation.
+    public init(
+        id: String,
+        provider: String,
+        capability: ProviderCapability,
+        state: ConnectorReadState,
+        title: String,
+        detail: String
+    ) {
+        self.id = id
+        self.provider = provider
+        self.capability = capability
+        self.state = state
+        self.title = title
+        self.detail = detail
     }
 }
 
@@ -289,6 +323,42 @@ public struct TokenDashboardSnapshot: Equatable, Sendable {
 
 /// Deterministic page fixtures. They are permanently identified as mock or demo data in the UI.
 public enum DashboardFixtures {
+    /// Non-numeric states for local-only and unsupported P0 Provider capabilities.
+    public static let providerCapabilityStatuses: [ProviderCapabilityStatusSnapshot] = [
+        .init(
+            id: "gemini-usage-local",
+            provider: "Gemini",
+            capability: .usage,
+            state: .notSynchronized,
+            title: "等待本地用量",
+            detail: "仅在本地聚合此设备随后收到的 usage metadata；无远端历史时显示空状态。"
+        ),
+        .init(
+            id: "glm-plan-unsupported",
+            provider: "智谱 GLM",
+            capability: .plan,
+            state: .unsupported,
+            title: "套餐窗口暂不支持",
+            detail: "仅展示响应 usage 的本地聚合与有版本定价的费用估算。"
+        ),
+        .init(
+            id: "minimax-plan-unsupported",
+            provider: "MiniMax",
+            capability: .plan,
+            state: .unsupported,
+            title: "Token Plan 暂不映射",
+            detail: "公开页面未给出稳定响应字段契约；按量 Token 与套餐额度保持分离。"
+        ),
+        .init(
+            id: "codex-plan-unsupported",
+            provider: "Codex",
+            capability: .plan,
+            state: .unsupported,
+            title: "官方生产接口暂不可用",
+            detail: "GATE-02 关闭期间不读取 Cookie、私有容器或用户现有 Codex 进程。"
+        ),
+    ]
+
     /// Deterministic overview fixture, permanently labeled mock/demo in the UI.
     public static let overview = OverviewSnapshot(
         weather: WeatherSnapshot(

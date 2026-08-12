@@ -1,4 +1,9 @@
 {
+  "fixtureMetadata": {
+    "mode": "demonstration",
+    "isRealAccountData": false,
+    "displayLabel": "演示数据 · 不代表真实额度"
+  },
   "id": 6,
   "result": {
     "rateLimits": {

@@ -1,0 +1,12 @@
+{
+  "created": 1768500000,
+  "model": "glm-4.7-example",
+  "usage": {
+    "prompt_tokens": 1200,
+    "completion_tokens": 340,
+    "prompt_tokens_details": {
+      "cached_tokens": 200
+    },
+    "total_tokens": 1540
+  }
+}
