@@ -1,10 +1,74 @@
 import AppKit
+import Foundation
 import Testing
+import TokenDeskCore
 @testable import TokenDeskPlatform
 
 @Test
 func platformModuleNameIsStable() {
     #expect(TokenDeskPlatformModule.name == "TokenDeskPlatform")
+}
+
+@Test @MainActor
+func preferencesSurviveStoreRecreationWithoutCredentials() throws {
+    let suiteName = "TokenDeskPlatformTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    let expected = SettingsPreferences(
+        manualCity: "杭州",
+        timeZoneOverrideIdentifier: "Asia/Shanghai",
+        weatherRefreshMinutes: 30,
+        showsHourlyWeather: false,
+        alertsEnabled: true,
+        exportFormat: .json
+    )
+
+    try UserDefaultsSettingsPreferencesStore(defaults: defaults).save(expected)
+    let restored = UserDefaultsSettingsPreferencesStore(defaults: defaults).load()
+
+    #expect(restored == expected)
+    let persistedText = String(
+        data: try #require(defaults.data(forKey: "settings.preferences.v1")), encoding: .utf8)
+    #expect(persistedText?.localizedCaseInsensitiveContains("apiKey") == false)
+}
+
+@Test @MainActor
+func corruptPreferencesRecoverToSafeDefaults() throws {
+    let suiteName = "TokenDeskPlatformTests.\(UUID().uuidString)"
+    let defaults = try #require(UserDefaults(suiteName: suiteName))
+    defer { defaults.removePersistentDomain(forName: suiteName) }
+    defaults.set(Data("not-json".utf8), forKey: "settings.preferences.v1")
+
+    let restored = UserDefaultsSettingsPreferencesStore(defaults: defaults).load()
+
+    #expect(restored == SettingsPreferences())
+    #expect(!restored.alertsEnabled)
+}
+
+@Test @MainActor
+func cancelledSavePanelDoesNotWrite() async throws {
+    var writeCount = 0
+    let service = SavePanelHistoryExportService(
+        destinationPicker: { _, _ in nil },
+        dataWriter: { _, _ in writeCount += 1 }
+    )
+
+    let result = try await service.export(
+        data: Data("safe".utf8),
+        format: .json,
+        suggestedFilename: "history"
+    )
+
+    #expect(result == .cancelled)
+    #expect(writeCount == 0)
+}
+
+@Test @MainActor
+func platformPermissionMappingsPreserveDeniedAndAllowedStates() {
+    #expect(CoreLocationService.authorization(from: .denied) == .denied)
+    #expect(CoreLocationService.authorization(from: .authorizedAlways) == .authorized)
+    #expect(NotificationService.authorization(from: .denied) == .denied)
+    #expect(NotificationService.authorization(from: .authorized) == .authorized)
 }
 
 @Test

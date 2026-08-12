@@ -44,9 +44,15 @@ let package = Package(
             name: "TokenDeskConnectorsTests",
             dependencies: ["TokenDeskConnectors", "TokenDeskCore"]
         ),
-        .testTarget(name: "TokenDeskPlatformTests", dependencies: ["TokenDeskPlatform"]),
+        .testTarget(
+            name: "TokenDeskPlatformTests",
+            dependencies: ["TokenDeskPlatform", "TokenDeskCore"]
+        ),
         .testTarget(name: "TokenDeskDesignTests", dependencies: ["TokenDeskDesign"]),
-        .testTarget(name: "TokenDeskFeaturesTests", dependencies: ["TokenDeskFeatures"]),
+        .testTarget(
+            name: "TokenDeskFeaturesTests",
+            dependencies: ["TokenDeskFeatures", "TokenDeskCore"]
+        ),
     ],
     swiftLanguageModes: [.v6]
 )
