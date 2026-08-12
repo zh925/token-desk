@@ -1,5 +1,7 @@
+import AppKit
 import SwiftUI
 import TokenDeskFeatures
+import TokenDeskPlatform
 import XCTest
 @testable import TokenDesk
 
@@ -71,5 +73,81 @@ final class TokenDeskTests: XCTestCase {
             }
         }
         clock.stop()
+    }
+
+    func testDisplayCanvasSurvivesThreeNativeFullScreenRoundTrips() async throws {
+        guard let screen = NSScreen.main else {
+            throw XCTSkip("Native full-screen transitions require an interactive macOS display")
+        }
+        let initialFrame = fittedWindowFrame(in: screen.visibleFrame)
+        let window = NSWindow(
+            contentRect: initialFrame,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
+        window.contentView = NSHostingView(
+            rootView: DisplayCanvas {
+                Color.accentColor
+                    .frame(width: 1_280, height: 720)
+            }
+        )
+        window.setFrame(initialFrame, display: false)
+        window.makeKeyAndOrderFront(nil)
+        let windowedFrame = window.frame
+        defer {
+            window.orderOut(nil)
+            window.close()
+        }
+
+        for cycle in 1...3 {
+            try await toggleFullScreen(
+                window,
+                awaiting: NSWindow.didEnterFullScreenNotification,
+                cycle: cycle
+            )
+            XCTAssertTrue(window.styleMask.contains(.fullScreen))
+
+            try await toggleFullScreen(
+                window,
+                awaiting: NSWindow.didExitFullScreenNotification,
+                cycle: cycle
+            )
+            XCTAssertFalse(window.styleMask.contains(.fullScreen))
+            XCTAssertEqual(window.frame.minX, windowedFrame.minX, accuracy: 2)
+            XCTAssertEqual(window.frame.minY, windowedFrame.minY, accuracy: 2)
+            XCTAssertEqual(window.frame.width, windowedFrame.width, accuracy: 2)
+            XCTAssertEqual(window.frame.height, windowedFrame.height, accuracy: 2)
+        }
+    }
+
+    private func fittedWindowFrame(in visibleFrame: NSRect) -> NSRect {
+        let width = min(1_227, visibleFrame.width)
+        let height = min(690, visibleFrame.height)
+        return NSRect(
+            x: visibleFrame.midX - width / 2,
+            y: visibleFrame.midY - height / 2,
+            width: width,
+            height: height
+        )
+    }
+
+    private func toggleFullScreen(
+        _ window: NSWindow,
+        awaiting notificationName: Notification.Name,
+        cycle: Int
+    ) async throws {
+        let transition = XCTNSNotificationExpectation(
+            name: notificationName,
+            object: window,
+            notificationCenter: .default
+        )
+        window.toggleFullScreen(nil)
+        let result = await XCTWaiter.fulfillment(of: [transition], timeout: 10)
+        XCTAssertEqual(
+            result,
+            .completed,
+            "Full-screen transition \(notificationName.rawValue) timed out in cycle \(cycle)"
+        )
     }
 }

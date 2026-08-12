@@ -52,7 +52,18 @@ jobs:
           xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
           -configuration Debug -destination 'platform=macOS'
           -disableAutomaticPackageResolution CODE_SIGNING_ALLOWED=NO
-          -only-testing:TokenDeskTests test
+          -resultBundlePath TokenDeskTests.xcresult
+          -only-testing:TokenDeskTests
+          -skip-testing:TokenDeskTests/TokenDeskTests/testDisplayCanvasSurvivesThreeNativeFullScreenRoundTrips
+          test
+      - name: Preserve app unit test failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: token-desk-unit-test-failure-${{ github.run_id }}
+          path: TokenDeskTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 14
       - name: Run Release UI acceptance tests
         run: >-
           xcodebuild -project TokenDesk.xcodeproj -scheme TokenDesk
