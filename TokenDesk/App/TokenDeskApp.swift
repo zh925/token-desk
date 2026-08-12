@@ -112,10 +112,23 @@ private final class UITestWindowAttachmentView: NSView {
             window.styleMask = [.borderless]
             window.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
             window.isMovable = false
-            let targetSize = NSSize(width: 1_280, height: 720)
+            let designSize = NSSize(width: 1_280, height: 720)
+            let availableFrame = screen.visibleFrame.insetBy(dx: 8, dy: 8)
+            let scale = min(
+                1,
+                availableFrame.width / designSize.width,
+                availableFrame.height / designSize.height
+            )
+            let targetSize = NSSize(
+                width: designSize.width * scale,
+                height: designSize.height * scale
+            )
             let targetFrame = NSRect(
-                x: screen.frame.midX - targetSize.width / 2,
-                y: screen.frame.midY - targetSize.height / 2,
+                // Hosted runners can expose less than the 1,280×720 design size. Keep the
+                // fixed canvas uniformly scaled inside the interactive desktop so trailing
+                // controls and screenshot pixels are not clipped by the window or Dock.
+                x: availableFrame.midX - targetSize.width / 2,
+                y: availableFrame.midY - targetSize.height / 2,
                 width: targetSize.width,
                 height: targetSize.height
             )
