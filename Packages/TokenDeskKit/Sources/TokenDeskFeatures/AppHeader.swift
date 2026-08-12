@@ -4,10 +4,18 @@ import TokenDeskDesign
 /// Fixed application header with primary routing and the only settings entry.
 public struct AppHeader: View {
     @Bindable private var router: AppRouter
+    @Bindable private var dashboardStore: DashboardStore
+    private let synchronize: @MainActor () async -> Void
 
     /// Creates a header bound to the application router.
-    public init(router: AppRouter) {
+    public init(
+        router: AppRouter,
+        dashboardStore: DashboardStore = DashboardStore(),
+        synchronize: @escaping @MainActor () async -> Void = {}
+    ) {
         self.router = router
+        self.dashboardStore = dashboardStore
+        self.synchronize = synchronize
     }
 
     /// The 58-point global header.
@@ -23,14 +31,17 @@ public struct AppHeader: View {
 
             Spacer()
 
-            TokenDeskStatusBadge(.connected)
+            TokenDeskStatusBadge(dashboardStore.headerStatus)
 
-            Text("最后更新 10:09")
+            Text(lastUpdatedDescription)
                 .font(TokenDeskTextStyle.auxiliary.font)
 
-            Button("同步") {}
-                .buttonStyle(TokenDeskButtonStyle())
-                .accessibilityIdentifier("sync-button")
+            Button(dashboardStore.isSynchronizing ? "同步中" : "同步") {
+                Task { await synchronize() }
+            }
+            .buttonStyle(TokenDeskButtonStyle())
+            .disabled(dashboardStore.isSynchronizing)
+            .accessibilityIdentifier("sync-button")
 
             Button("设置") {
                 router.select(.settings)
@@ -47,6 +58,11 @@ public struct AppHeader: View {
                 .fill(TokenDeskDesign.Palette.ink.color)
                 .frame(height: TokenDeskDesign.Border.emphasis)
         }
+    }
+
+    private var lastUpdatedDescription: String {
+        guard let date = dashboardStore.lastUpdatedAt else { return "尚未同步" }
+        return "最后更新 \(date.formatted(date: .omitted, time: .shortened))"
     }
 
     private var brand: some View {

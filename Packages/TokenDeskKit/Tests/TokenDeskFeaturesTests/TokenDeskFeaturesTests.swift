@@ -62,6 +62,99 @@ func dashboardStatesKeepEmptyFailureAndStaleSemanticsDistinct() {
     #expect(states[2] != states[3])
 }
 
+@Test @MainActor
+func productionDashboardCoversLoadingEmptyAndTrueZero() async throws {
+    let now = Date(timeIntervalSince1970: 1_786_500_000)
+    let emptyProvider = TestDashboardDataProvider(data: emptyDashboardData(), now: now)
+    let emptyStore = DashboardStore(dataProvider: emptyProvider, now: { now })
+    #expect(emptyStore.overviewState == .loading)
+
+    await emptyStore.start(location: nil)
+    #expect(
+        emptyStore.overviewState
+            == .empty(
+                title: "尚无看板数据",
+                detail: "本地缓存为空；配置 Provider 或天气位置后即可同步。"
+            )
+    )
+
+    let zeroData = try dashboardData(now: now, input: 0, output: 0)
+    let zeroStore = DashboardStore(
+        dataProvider: TestDashboardDataProvider(data: zeroData, now: now),
+        now: { now }
+    )
+    await zeroStore.start(location: nil)
+    guard case .loaded(let snapshot) = zeroStore.tokensStore.contentState else {
+        Issue.record("A stored zero must render as loaded data, not an empty state")
+        return
+    }
+    #expect(snapshot.inputTokens == 0)
+    #expect(snapshot.outputTokens == 0)
+}
+
+@Test @MainActor
+func productionDashboardKeepsStaleCachedDataVisible() async throws {
+    let now = Date(timeIntervalSince1970: 1_786_500_000)
+    let data = try dashboardData(now: now, isStale: true)
+    let store = DashboardStore(
+        dataProvider: TestDashboardDataProvider(data: data, now: now),
+        now: { now }
+    )
+
+    await store.start(location: nil)
+
+    guard case .stale(let snapshot, _) = store.tokensStore.contentState else {
+        Issue.record("Expected stale production data to remain visible")
+        return
+    }
+    #expect(snapshot.inputTokens == 12)
+}
+
+@Test @MainActor
+func productionDashboardIsolatesAuthenticationAndOfflineAsPartialData() async throws {
+    let now = Date(timeIntervalSince1970: 1_786_500_000)
+    let data = try dashboardData(now: now)
+    for error in [ConnectorError.authentication, .network] {
+        let provider = TestDashboardDataProvider(data: data, now: now, failure: error)
+        let store = DashboardStore(dataProvider: provider, now: { now })
+
+        await store.start(location: nil)
+
+        guard case .partial(let snapshot, let issues) = store.tokensStore.contentState else {
+            Issue.record("Expected cached values plus a typed partial failure")
+            continue
+        }
+        #expect(snapshot.inputTokens == 12)
+        #expect(issues.first?.providerName == "OpenAI Production")
+        #expect(
+            issues.first?.kind
+                == (error == .authentication ? .authentication : .offline)
+        )
+    }
+}
+
+@Test @MainActor
+func productionDashboardShowsRateLimitWithoutInventingValues() async throws {
+    let now = Date(timeIntervalSince1970: 1_786_500_000)
+    let data = try dashboardData(now: now, includeUsage: false)
+    let provider = TestDashboardDataProvider(
+        data: data,
+        now: now,
+        failure: .rateLimited(retryAfter: .seconds(60))
+    )
+    let store = DashboardStore(dataProvider: provider, now: { now })
+
+    await store.start(location: nil)
+
+    guard case .failed(let title, let detail, let cached) = store.tokensStore.contentState else {
+        Issue.record("Expected a value-free rate-limit state")
+        return
+    }
+    #expect(title == "OpenAI Production")
+    #expect(detail.contains("Retry-After"))
+    #expect(cached == nil)
+}
+
 @Test
 func planFixturesExerciseZeroOneHundredAndSourceLabels() {
     #expect(DashboardFixtures.plans.contains { $0.usedPercent == 0 })
@@ -390,6 +483,107 @@ private func loadedSnapshot(
 ) -> TokenDashboardSnapshot? {
     guard case .loaded(let snapshot) = state else { return nil }
     return snapshot
+}
+
+private final class TestDashboardDataProvider: DashboardDataProviding, @unchecked Sendable {
+    let data: DashboardDataSnapshot
+    let now: Date
+    let failure: ConnectorError?
+
+    init(data: DashboardDataSnapshot, now: Date, failure: ConnectorError? = nil) {
+        self.data = data
+        self.now = now
+        self.failure = failure
+    }
+
+    func loadCachedDashboardData() async throws -> DashboardDataSnapshot { data }
+
+    func refreshDashboardData(location: WeatherLocation?) async -> DashboardRefreshResult {
+        let providerID = data.configurations.first?.providerID
+        let providers =
+            providerID.map {
+                [
+                    ProviderSyncResult(
+                        providerID: $0,
+                        status: failure.map(ProviderSyncStatus.failed) ?? .succeeded,
+                        attempts: 1
+                    )
+                ]
+            } ?? []
+        return DashboardRefreshResult(
+            providerReport: SyncReport(startedAt: now, completedAt: now, providers: providers),
+            weatherResult: nil
+        )
+    }
+}
+
+private func emptyDashboardData() -> DashboardDataSnapshot {
+    DashboardDataSnapshot(
+        configurations: [],
+        plans: [],
+        usage: [],
+        costs: [],
+        balances: [],
+        weather: nil
+    )
+}
+
+private func dashboardData(
+    now: Date,
+    input: Int64 = 12,
+    output: Int64 = 4,
+    isStale: Bool = false,
+    includeUsage: Bool = true
+) throws -> DashboardDataSnapshot {
+    let providerID = try ProviderID(rawValue: "openai-production")
+    let accountID = try AccountID(rawValue: "account-production")
+    let configuration = ProviderAccountConfiguration(
+        providerID: providerID,
+        accountID: accountID,
+        providerType: try ProviderType(rawValue: "openai"),
+        providerDisplayName: "OpenAI Production",
+        accountDisplayName: "组织账户",
+        scope: .organization,
+        hierarchy: AccountHierarchy(organizationReference: "org-redacted"),
+        credentialReference: try CredentialReference(rawValue: "account-production"),
+        credentialStatus: .configured,
+        isEnabled: true,
+        refreshIntervalMinutes: 15
+    )
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = try #require(TimeZone(identifier: "UTC"))
+    let period = try UsagePeriod.containing(
+        now,
+        granularity: .day,
+        calendar: calendar,
+        timeZone: calendar.timeZone
+    )
+    let source = try DataSource(kind: .official, identifier: "official_usage")
+    let metadata = ObservationMetadata(
+        source: source,
+        updatedAt: isStale ? now.addingTimeInterval(-3_600) : now,
+        isStale: isStale
+    )
+    let usage = try TokenUsageBucket(
+        providerID: providerID,
+        accountID: accountID,
+        model: "gpt-production",
+        granularity: .day,
+        period: period,
+        tokens: TokenBreakdown(
+            input: try TokenCount(rawValue: input),
+            output: try TokenCount(rawValue: output)
+        ),
+        metadata: metadata
+    )
+    return DashboardDataSnapshot(
+        configurations: [configuration],
+        plans: [],
+        usage: includeUsage ? [usage] : [],
+        costs: [],
+        balances: [],
+        weather: nil
+    )
 }
 
 @MainActor

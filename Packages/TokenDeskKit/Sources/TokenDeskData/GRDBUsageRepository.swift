@@ -221,6 +221,42 @@ public final class GRDBUsageRepository: UsageRepository, LocallyAggregatedUsageR
         }
     }
 
+    /// Reads current cached plan windows for one account without inventing expired values.
+    public func cachedPlans(for account: AccountReference, now: Date) throws -> [PlanWindow] {
+        try writer.read { database in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT * FROM plan_snapshots
+                    WHERE provider_id = ? AND account_id = ? AND resets_at > ?
+                    ORDER BY resets_at, limit_identifier, source
+                    """,
+                arguments: [
+                    account.providerID.rawValue,
+                    account.id.rawValue,
+                    PersistenceCodec.date(now),
+                ]
+            )
+            return try rows.map(Self.plan(from:))
+        }
+    }
+
+    /// Reads retained balance observations for one account; aggregation selects the latest value.
+    public func cachedBalances(for account: AccountReference) throws -> [BalanceSnapshot] {
+        try writer.read { database in
+            let rows = try Row.fetchAll(
+                database,
+                sql: """
+                    SELECT * FROM balances
+                    WHERE provider_id = ? AND account_id = ?
+                    ORDER BY observed_at, currency, source
+                    """,
+                arguments: [account.providerID.rawValue, account.id.rawValue]
+            )
+            return try rows.map(Self.balance(from:))
+        }
+    }
+
     /// Applies 7/90/730-day aggregation and deletion in one database transaction.
     public func performRetention(now: Date) throws -> RetentionReport {
         var calendar = Calendar(identifier: .gregorian)
@@ -511,6 +547,77 @@ public final class GRDBUsageRepository: UsageRepository, LocallyAggregatedUsageR
                 amount: amount,
                 currency: CurrencyCode(rawValue: row["currency"])
             ),
+            metadata: ObservationMetadata(
+                source: try DataSource(kind: sourceKind, identifier: row["source"]),
+                updatedAt: try PersistenceCodec.date(row["updated_at"]),
+                isStale: row["is_stale"]
+            )
+        )
+    }
+
+    private static func plan(from row: Row) throws -> PlanWindow {
+        let sourceKindRaw: String = row["source_kind"]
+        guard let sourceKind = DataSourceKind(rawValue: sourceKindRaw) else {
+            throw UsageRepositoryError.invalidStoredValue(field: "sourceKind")
+        }
+        guard
+            let usedPercent = PersistenceCodec.decimal(row["used_percent_decimal"] as String)
+        else {
+            throw UsageRepositoryError.invalidStoredValue(field: "usedPercentDecimal")
+        }
+        let confidenceValue = (row["confidence_decimal"] as String?).flatMap {
+            PersistenceCodec.decimal($0)
+        }
+        return try PlanWindow(
+            providerID: ProviderID(rawValue: row["provider_id"]),
+            accountID: AccountID(rawValue: row["account_id"]),
+            planName: row["plan_name"],
+            limitIdentifier: row["limit_identifier"],
+            usedPercent: UsagePercent(rawValue: usedPercent),
+            windowDurationMinutes: row["window_duration_minutes"],
+            resetsAt: try PersistenceCodec.date(row["resets_at"]),
+            timeZoneIdentifier: row["time_zone_identifier"],
+            confidence: try confidenceValue.map(SourceConfidence.init(rawValue:)),
+            metadata: ObservationMetadata(
+                source: try DataSource(kind: sourceKind, identifier: row["source"]),
+                updatedAt: try PersistenceCodec.date(row["updated_at"]),
+                isStale: row["is_stale"]
+            )
+        )
+    }
+
+    private static func balance(from row: Row) throws -> BalanceSnapshot {
+        let sourceKindRaw: String = row["source_kind"]
+        guard let sourceKind = DataSourceKind(rawValue: sourceKindRaw) else {
+            throw UsageRepositoryError.invalidStoredValue(field: "sourceKind")
+        }
+        guard
+            let amount = PersistenceCodec.decimal(row["available_amount_decimal"] as String)
+        else {
+            throw UsageRepositoryError.invalidStoredValue(field: "availableAmountDecimal")
+        }
+        let currency = try CurrencyCode(rawValue: row["currency"])
+        let credited = (row["total_credited_amount_decimal"] as String?).flatMap {
+            PersistenceCodec.decimal($0)
+        }
+        let consumed = (row["total_consumed_amount_decimal"] as String?).flatMap {
+            PersistenceCodec.decimal($0)
+        }
+        let details: CreditBalanceDetails?
+        if let credited, let consumed {
+            details = try CreditBalanceDetails(
+                totalCredited: Money(amount: credited, currency: currency),
+                totalConsumed: Money(amount: consumed, currency: currency),
+                balanceCurrency: currency
+            )
+        } else {
+            details = nil
+        }
+        return BalanceSnapshot(
+            providerID: try ProviderID(rawValue: row["provider_id"]),
+            accountID: try AccountID(rawValue: row["account_id"]),
+            available: Money(amount: amount, currency: currency),
+            creditDetails: details,
             metadata: ObservationMetadata(
                 source: try DataSource(kind: sourceKind, identifier: row["source"]),
                 updatedAt: try PersistenceCodec.date(row["updated_at"]),

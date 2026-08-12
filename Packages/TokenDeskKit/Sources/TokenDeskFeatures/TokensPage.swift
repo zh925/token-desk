@@ -15,6 +15,9 @@ public final class TokensPageStore {
     public private(set) var selectedRange: TokenTimeRange
     /// Current render state for all Token metrics and chart data.
     public var contentState: DashboardContentState<TokenDashboardSnapshot>
+    private var productionStates:
+        [String: [TokenTimeRange: DashboardContentState<TokenDashboardSnapshot>]]?
+    private var productionFallback: DashboardContentState<TokenDashboardSnapshot>?
 
     /// Creates a store with deterministic fixture-backed defaults.
     public init(
@@ -41,19 +44,43 @@ public final class TokensPageStore {
     public func selectProvider(_ id: String) {
         guard providers.contains(where: { $0.id == id }) else { return }
         selectedProviderID = id
-        contentState = DashboardFixtures.tokenContentState(
-            providerID: id,
-            range: selectedRange
-        )
+        contentState = resolvedContentState(providerID: id, range: selectedRange)
     }
 
     /// Selects an aggregation range and atomically replaces the displayed snapshot.
     public func selectRange(_ range: TokenTimeRange) {
         selectedRange = range
-        contentState = DashboardFixtures.tokenContentState(
+        contentState = resolvedContentState(providerID: selectedProviderID, range: range)
+    }
+
+    /// Atomically replaces fixture values with states derived from production cache and sync.
+    public func applyProduction(
+        providers: [TokenProviderSnapshot],
+        states: [String: [TokenTimeRange: DashboardContentState<TokenDashboardSnapshot>]],
+        fallback: DashboardContentState<TokenDashboardSnapshot>? = nil
+    ) {
+        productionStates = states
+        productionFallback = fallback
+        self.providers = providers
+        if !providers.contains(where: { $0.id == selectedProviderID }) {
+            selectedProviderID = providers.first?.id ?? ""
+        }
+        contentState = resolvedContentState(
             providerID: selectedProviderID,
-            range: range
+            range: selectedRange
         )
+    }
+
+    private func resolvedContentState(
+        providerID: String,
+        range: TokenTimeRange
+    ) -> DashboardContentState<TokenDashboardSnapshot> {
+        if let productionStates {
+            return productionStates[providerID]?[range]
+                ?? productionFallback
+                ?? .empty(title: "尚无用量数据", detail: "首次同步后显示。")
+        }
+        return DashboardFixtures.tokenContentState(providerID: providerID, range: range)
     }
 }
 
@@ -74,7 +101,7 @@ public struct TokensPage: View {
                 PageHeading(
                     title: "Token页面",
                     subtitle: "输入、输出、缓存、费用与余额分别展示",
-                    code: "TOKEN USAGE · MOCK"
+                    code: "TOKEN USAGE · LIVE"
                 )
                 Spacer(minLength: 20)
                 rangePicker

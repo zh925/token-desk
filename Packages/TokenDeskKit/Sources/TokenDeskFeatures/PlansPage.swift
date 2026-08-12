@@ -22,7 +22,7 @@ public struct PlansPage: View {
             PageHeading(
                 title: "套餐页面",
                 subtitle: "窗口额度只展示百分比，不换算为 Token",
-                code: "PLAN WINDOWS · MOCK"
+                code: "PLAN WINDOWS · LIVE"
             )
 
             DashboardStateView(state: state) { plans in
