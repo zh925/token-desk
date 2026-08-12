@@ -353,15 +353,20 @@ func providerSavePassesRedactedCredentialBoundaryAndReloadsConfiguration() async
     #expect(store.providerDraft == nil)
 }
 
-@Test
-func exportFoundationUsesBOMAndExcludesSensitiveFields() throws {
-    let csv = HistoryExportFoundation.payload(format: .csv)
-    #expect(Array(csv.prefix(3)) == [0xEF, 0xBB, 0xBF])
-    let csvText = try #require(String(data: csv, encoding: .utf8))
-    #expect(csvText.contains("Provider"))
-    #expect(!csvText.localizedCaseInsensitiveContains("api key"))
-    #expect(!csvText.contains("Prompt"))
-    #expect(HistoryExportFoundation.payload(format: .json) == Data("[]\n".utf8))
+@Test @MainActor
+func exportUsesFilteredHistoryPayloadAndReportsSaveResult() async throws {
+    let history = TestHistoryDataService()
+    let exporter = TestHistoryExporter()
+    let store = SettingsStore(exportService: exporter, historyDataService: history)
+    store.exportStartDate = Date(timeIntervalSince1970: 1_800_000_000)
+    store.exportEndDate = store.exportStartDate.addingTimeInterval(3_600)
+    store.exportProjectReference = "project-filter"
+
+    await store.exportHistory()
+
+    #expect(exporter.receivedData == Data("whitelisted".utf8))
+    #expect(history.lastRequest?.projectReference == "project-filter")
+    #expect(store.operationMessage == "已导出 2 条记录：history.csv")
 }
 
 @Test @MainActor
@@ -544,6 +549,52 @@ private struct TestProviderConnectionTester: ProviderConnectionTesting {
     {
         if let error { throw error }
         return .connected
+    }
+}
+
+private final class TestHistoryDataService: HistoryDataServicing, @unchecked Sendable {
+    var lastRequest: HistoryExportRequest?
+
+    func storageSnapshot() async throws -> HistoryStorageSnapshot {
+        HistoryStorageSnapshot(
+            databaseBytes: 4_096,
+            usageRows: 1,
+            costRows: 1,
+            planRows: 0,
+            balanceRows: 0
+        )
+    }
+
+    func makeExport(
+        format: HistoryExportFormat,
+        request: HistoryExportRequest
+    ) async throws -> HistoryExportPayload {
+        lastRequest = request
+        return HistoryExportPayload(data: Data("whitelisted".utf8), recordCount: 2)
+    }
+
+    func clearHistory(scope: HistoryClearScope) async throws -> HistoryClearReport {
+        HistoryClearReport(
+            deletedUsageRows: 1,
+            deletedCostRows: 1,
+            deletedPlanRows: 0,
+            deletedBalanceRows: 0,
+            deletedAlertEventRows: 0
+        )
+    }
+}
+
+@MainActor
+private final class TestHistoryExporter: HistoryExportServicing {
+    var receivedData: Data?
+
+    func export(
+        data: Data,
+        format: HistoryExportFormat,
+        suggestedFilename: String
+    ) async throws -> HistoryExportResult {
+        receivedData = data
+        return .saved(filename: "history.csv")
     }
 }
 

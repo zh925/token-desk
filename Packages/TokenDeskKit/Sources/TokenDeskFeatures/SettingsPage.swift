@@ -8,6 +8,7 @@ public struct SettingsPage: View {
     @Bindable private var store: SettingsStore
     @Bindable private var clock: DashboardClock
     @State private var deletionAccountID: AccountID?
+    @State private var pendingHistoryClear: HistoryClearScope?
 
     /// Creates the page with injected settings and isolated clock state.
     public init(store: SettingsStore, clock: DashboardClock) {
@@ -63,6 +64,23 @@ public struct SettingsPage: View {
             Button("取消", role: .cancel) { deletionAccountID = nil }
         } message: {
             Text("凭据只从 Keychain 删除。保留历史时账户会停用，套餐、Token、余额与费用口径保持不变。")
+        }
+        .confirmationDialog(
+            "确认清理历史",
+            isPresented: Binding(
+                get: { pendingHistoryClear != nil },
+                set: { if !$0 { pendingHistoryClear = nil } }
+            ),
+            titleVisibility: .visible
+        ) {
+            Button("永久清理", role: .destructive) {
+                guard let scope = pendingHistoryClear else { return }
+                pendingHistoryClear = nil
+                Task { await store.clearHistory(scope: scope) }
+            }
+            Button("取消", role: .cancel) { pendingHistoryClear = nil }
+        } message: {
+            Text("此操作只清理本地历史，不能撤销；Provider 配置和 Keychain 凭据不会删除。")
         }
     }
 
@@ -353,19 +371,104 @@ public struct SettingsPage: View {
 
     private var dataExportSettings: some View {
         settingsPanel("数据与导出") {
-            VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.large) {
+            VStack(alignment: .leading, spacing: TokenDeskDesign.Spacing.small) {
+                settingsRow("本地占用", detail: historyStorageLabel)
                 settingsRow("保留策略", detail: "分钟 7 天 · 小时 90 天 · 每日 2 年")
-                Picker("导出格式", selection: exportFormatBinding) {
-                    Text("CSV · UTF-8 BOM").tag("csv")
-                    Text("JSON").tag("json")
+                HStack {
+                    DatePicker("开始", selection: $store.exportStartDate, displayedComponents: .date)
+                    DatePicker("结束", selection: $store.exportEndDate, displayedComponents: .date)
                 }
-                Button("选择位置并导出") { Task { await store.exportHistoryFoundation() } }
-                    .buttonStyle(TokenDeskButtonStyle())
-                    .accessibilityIdentifier("export-history-button")
+                HStack {
+                    Picker("Provider", selection: exportProviderBinding) {
+                        Text("全部").tag(ProviderID?.none)
+                        ForEach(uniqueProviders, id: \.providerID) { configuration in
+                            Text(configuration.providerDisplayName).tag(
+                                Optional(configuration.providerID))
+                        }
+                    }
+                    Picker("账户", selection: $store.exportAccountID) {
+                        Text("全部").tag(AccountID?.none)
+                        ForEach(exportAccounts, id: \.accountID) { configuration in
+                            Text(configuration.accountDisplayName).tag(
+                                Optional(configuration.accountID))
+                        }
+                    }
+                    TextField("项目筛选（可选）", text: $store.exportProjectReference)
+                }
+                HStack {
+                    Text("Token 粒度")
+                    ForEach([UsageGranularity.minute, .hour, .day], id: \.self) { granularity in
+                        Toggle(granularityLabel(granularity), isOn: granularityBinding(granularity))
+                            .toggleStyle(.checkbox)
+                    }
+                    Spacer()
+                    Picker("格式", selection: exportFormatBinding) {
+                        Text("CSV · BOM").tag("csv")
+                        Text("JSON").tag("json")
+                    }
+                    .frame(width: 170)
+                }
+                HStack {
+                    Button("选择位置并导出") { Task { await store.exportHistory() } }
+                        .buttonStyle(TokenDeskButtonStyle())
+                        .disabled(store.exportEndDate <= store.exportStartDate)
+                        .accessibilityIdentifier("export-history-button")
+                    Button("清理所选 Provider", role: .destructive) {
+                        if let providerID = store.exportProviderID {
+                            pendingHistoryClear = .provider(providerID)
+                        }
+                    }
+                    .disabled(store.exportProviderID == nil)
+                    Button("清空全部历史", role: .destructive) {
+                        pendingHistoryClear = .all
+                    }
+                }
                 Text("仅写入系统保存面板中选定的文件；不导出密钥、Prompt 或响应正文。")
                     .font(TokenDeskTextStyle.auxiliary.font)
                 platformSaveBar
             }
+        }
+    }
+
+    private var historyStorageLabel: String {
+        guard let snapshot = store.historyStorage else { return "正在读取" }
+        let bytes = ByteCountFormatter.string(
+            fromByteCount: snapshot.databaseBytes, countStyle: .file)
+        return "\(bytes) · \(snapshot.historyRows) 条历史"
+    }
+
+    private var uniqueProviders: [ProviderAccountConfiguration] {
+        var seen: Set<ProviderID> = []
+        return store.providerConfigurations.filter { seen.insert($0.providerID).inserted }
+    }
+
+    private var exportAccounts: [ProviderAccountConfiguration] {
+        store.providerConfigurations.filter {
+            store.exportProviderID == nil || $0.providerID == store.exportProviderID
+        }
+    }
+
+    private var exportProviderBinding: Binding<ProviderID?> {
+        Binding(
+            get: { store.exportProviderID },
+            set: { store.setExportProvider($0) }
+        )
+    }
+
+    private func granularityBinding(_ granularity: UsageGranularity) -> Binding<Bool> {
+        Binding(
+            get: { store.exportGranularities.contains(granularity) },
+            set: { _ in store.toggleExportGranularity(granularity) }
+        )
+    }
+
+    private func granularityLabel(_ granularity: UsageGranularity) -> String {
+        switch granularity {
+        case .minute: "分钟"
+        case .hour: "小时"
+        case .day: "每日"
+        case .week: "每周"
+        case .month: "每月"
         }
     }
 

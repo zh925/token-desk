@@ -31,6 +31,7 @@ struct TokenDeskApp: App {
                 launchAtLoginService: LaunchAtLoginService(),
                 displayService: displayController,
                 exportService: SavePanelHistoryExportService(),
+                historyDataService: providerServices,
                 providerManager: providerServices,
                 connectionTester: providerServices
             )
@@ -55,10 +56,13 @@ struct TokenDeskApp: App {
 }
 
 /// Lazily opens SQLite away from the main actor before serving Provider settings work.
-private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConnectionTesting {
+private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConnectionTesting,
+    HistoryDataServicing
+{
     private let credentialStore = KeychainCredentialStore()
     private var manager: GRDBProviderAccountManager?
     private var tester: OfficialProviderConnectionTester?
+    private var historyDataService: GRDBHistoryDataService?
 
     func configurations() async throws -> [ProviderAccountConfiguration] {
         try await services().manager.configurations()
@@ -85,11 +89,29 @@ private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConn
         try await services().tester.testConnection(for: configuration)
     }
 
+    func storageSnapshot() async throws -> HistoryStorageSnapshot {
+        try await services().historyDataService.storageSnapshot()
+    }
+
+    func makeExport(
+        format: HistoryExportFormat,
+        request: HistoryExportRequest
+    ) async throws -> HistoryExportPayload {
+        try await services().historyDataService.makeExport(format: format, request: request)
+    }
+
+    func clearHistory(scope: HistoryClearScope) async throws -> HistoryClearReport {
+        try await services().historyDataService.clearHistory(scope: scope)
+    }
+
     private func services() throws -> (
         manager: GRDBProviderAccountManager,
-        tester: OfficialProviderConnectionTester
+        tester: OfficialProviderConnectionTester,
+        historyDataService: GRDBHistoryDataService
     ) {
-        if let manager, let tester { return (manager, tester) }
+        if let manager, let tester, let historyDataService {
+            return (manager, tester, historyDataService)
+        }
         let database = try TokenDeskDatabase.openApplicationDatabase()
         let manager = GRDBProviderAccountManager(
             writer: database,
@@ -99,8 +121,10 @@ private actor ApplicationProviderServices: ProviderAccountManaging, ProviderConn
             credentialStore: credentialStore,
             localUsageRepository: GRDBUsageRepository(writer: database)
         )
+        let historyDataService = GRDBHistoryDataService(writer: database)
         self.manager = manager
         self.tester = tester
-        return (manager, tester)
+        self.historyDataService = historyDataService
+        return (manager, tester, historyDataService)
     }
 }

@@ -81,8 +81,15 @@ public final class SettingsStore {
     private(set) var notificationAuthorization: PermissionAuthorization = .notDetermined
     private(set) var launchAtLoginStatus: LaunchAtLoginStatus
     private(set) var resolvedLocation: WeatherLocation?
+    private(set) var historyStorage: HistoryStorageSnapshot?
     private(set) var operationMessage: String?
     private(set) var isWorking = false
+    var exportStartDate: Date
+    var exportEndDate: Date
+    var exportProviderID: ProviderID?
+    var exportAccountID: AccountID?
+    var exportProjectReference = ""
+    var exportGranularities: Set<UsageGranularity> = [.minute, .hour, .day]
 
     var hasUnsavedPlatformChanges: Bool {
         preferences != persistedPreferences
@@ -95,6 +102,7 @@ public final class SettingsStore {
     private let launchAtLoginService: any LaunchAtLoginServicing
     private let displayService: any DisplaySettingsServicing
     private let exportService: any HistoryExportServicing
+    private let historyDataService: any HistoryDataServicing
     private let providerManager: any ProviderAccountManaging
     private let connectionTester: any ProviderConnectionTesting
     private var persistedPreferences: SettingsPreferences
@@ -109,6 +117,7 @@ public final class SettingsStore {
         launchAtLoginService: (any LaunchAtLoginServicing)? = nil,
         displayService: (any DisplaySettingsServicing)? = nil,
         exportService: (any HistoryExportServicing)? = nil,
+        historyDataService: (any HistoryDataServicing)? = nil,
         providerManager: (any ProviderAccountManaging)? = nil,
         connectionTester: (any ProviderConnectionTesting)? = nil
     ) {
@@ -123,6 +132,7 @@ public final class SettingsStore {
         self.launchAtLoginService = launchAtLoginService
         self.displayService = displayService
         self.exportService = exportService ?? CancelledExportService()
+        self.historyDataService = historyDataService ?? UnavailableHistoryDataService()
         self.providerManager = providerManager ?? UnavailableProviderAccountManager()
         self.connectionTester = connectionTester ?? UnavailableConnectionTester()
         let loadedPreferences = preferencesStore.load()
@@ -135,6 +145,9 @@ public final class SettingsStore {
         let selectedID = targets.first(where: \.isSelected)?.id
         selectedDisplayRuntimeID = selectedID
         persistedDisplayRuntimeID = selectedID
+        let now = Date()
+        exportEndDate = now
+        exportStartDate = Calendar.current.date(byAdding: .month, value: -1, to: now) ?? now
     }
 
     func refreshSystemState() async {
@@ -158,6 +171,7 @@ public final class SettingsStore {
             }
         }
         await reloadProviders()
+        await reloadHistoryStorage()
     }
 
     func savePlatformChanges() {
@@ -349,19 +363,56 @@ public final class SettingsStore {
         }
     }
 
-    func exportHistoryFoundation() async {
+    func exportHistory() async {
         await perform {
             let format = preferences.exportFormat
+            let payload = try await historyDataService.makeExport(
+                format: format,
+                request: HistoryExportRequest(
+                    interval: DateInterval(start: exportStartDate, end: exportEndDate),
+                    providerID: exportProviderID,
+                    accountID: exportAccountID,
+                    projectReference: exportProjectReference,
+                    granularities: exportGranularities
+                )
+            )
             let result = try await exportService.export(
-                data: HistoryExportFoundation.payload(format: format),
+                data: payload.data,
                 format: format,
                 suggestedFilename: "token-desk-history"
             )
             operationMessage =
                 switch result {
                 case .cancelled: "已取消导出；未写入任何文件。"
-                case .saved(let filename): "已导出：\(filename)"
+                case .saved(let filename): "已导出 \(payload.recordCount) 条记录：\(filename)"
                 }
+        }
+    }
+
+    func setExportProvider(_ providerID: ProviderID?) {
+        exportProviderID = providerID
+        if let accountID = exportAccountID,
+            !providerConfigurations.contains(where: {
+                $0.accountID == accountID && (providerID == nil || $0.providerID == providerID)
+            })
+        {
+            exportAccountID = nil
+        }
+    }
+
+    func toggleExportGranularity(_ granularity: UsageGranularity) {
+        if exportGranularities.contains(granularity) {
+            exportGranularities.remove(granularity)
+        } else {
+            exportGranularities.insert(granularity)
+        }
+    }
+
+    func clearHistory(scope: HistoryClearScope) async {
+        await perform {
+            let report = try await historyDataService.clearHistory(scope: scope)
+            historyStorage = try await historyDataService.storageSnapshot()
+            operationMessage = "已清理 \(report.totalDeletedRows) 条历史记录；Provider 设置与凭据未改动。"
         }
     }
 
@@ -370,6 +421,16 @@ public final class SettingsStore {
             providerConfigurations = try await providerManager.configurations()
         } catch {
             operationMessage = "Provider 设置无法读取：\(stableMessage(for: error))"
+        }
+    }
+
+    private func reloadHistoryStorage() async {
+        do {
+            historyStorage = try await historyDataService.storageSnapshot()
+        } catch {
+            if operationMessage == nil {
+                operationMessage = "历史数据占用无法读取：\(stableMessage(for: error))"
+            }
         }
     }
 
@@ -399,19 +460,6 @@ public final class SettingsStore {
         case .decoding: "Provider 返回了无法识别的数据；未改动现有设置。"
         case .unsupported: "该 Provider 不支持此连接测试能力。"
         case .cancelled: "连接测试已取消。"
-        }
-    }
-}
-
-enum HistoryExportFoundation {
-    static func payload(format: HistoryExportFormat) -> Data {
-        switch format {
-        case .csv:
-            let header =
-                "时间,Provider,账户别名,模型,输入Token,输出Token,缓存读取Token,缓存写入Token,费用,币种,数据来源,是否估算\n"
-            return Data([0xEF, 0xBB, 0xBF]) + Data(header.utf8)
-        case .json:
-            return Data("[]\n".utf8)
         }
     }
 }
@@ -462,6 +510,23 @@ private final class CancelledExportService: HistoryExportServicing {
         format: HistoryExportFormat,
         suggestedFilename: String
     ) async throws -> HistoryExportResult { .cancelled }
+}
+
+private struct UnavailableHistoryDataService: HistoryDataServicing {
+    func storageSnapshot() async throws -> HistoryStorageSnapshot {
+        throw SettingsFallbackError.unavailable
+    }
+
+    func makeExport(
+        format: HistoryExportFormat,
+        request: HistoryExportRequest
+    ) async throws -> HistoryExportPayload {
+        throw SettingsFallbackError.unavailable
+    }
+
+    func clearHistory(scope: HistoryClearScope) async throws -> HistoryClearReport {
+        throw SettingsFallbackError.unavailable
+    }
 }
 
 private struct UnavailableProviderAccountManager: ProviderAccountManaging {
