@@ -78,6 +78,54 @@ func syncRetriesNetworkAndRetryAfterButNeverRetriesAuthentication() async throws
 }
 
 @Test
+func syncRetriesServerFailureButNeverRetriesPermissionFailure() async throws {
+    let serverBehavior = SyncBehavior(failures: [.server(statusCode: 500)])
+    let permissionBehavior = SyncBehavior(failures: [.permissionDenied])
+    let server = try makeSyncConnector(id: "server", behavior: serverBehavior)
+    let permission = try makeSyncConnector(id: "permission", behavior: permissionBehavior)
+    let registry = try ProviderConnectorRegistry(connectors: [server, permission])
+    let repository = SyncRepositorySpy()
+    let sleeps = SleepRecorder()
+    let coordinator = SyncCoordinator(
+        registry: registry,
+        repository: repository,
+        retryPolicy: SyncRetryPolicy(
+            maximumAttempts: 3,
+            baseDelaySeconds: 1,
+            maximumDelaySeconds: 30,
+            jitterFraction: 0
+        ),
+        sleeper: { duration in
+            await sleeps.record(duration)
+            try Task.checkCancellation()
+        },
+        randomUnit: { 0 }
+    )
+    let accounts = try Dictionary(
+        uniqueKeysWithValues: [server, permission].map { connector in
+            (connector.descriptor.id, [try makeSyncAccount(providerID: connector.descriptor.id)])
+        }
+    )
+
+    let report = await coordinator.manualSync(
+        accountsByProvider: accounts,
+        interval: DateInterval(start: .distantPast, duration: 1)
+    )
+
+    #expect(await serverBehavior.attempts == 2)
+    #expect(await permissionBehavior.attempts == 1)
+    #expect(await sleeps.values == [.seconds(1)])
+    #expect(
+        report.providers.first { $0.providerID == server.descriptor.id }?.status == .succeeded
+    )
+    #expect(
+        report.providers.first { $0.providerID == permission.descriptor.id }?.status
+            == .failed(.permissionDenied)
+    )
+    #expect(repository.usageWriteCount == 1)
+}
+
+@Test
 func oneFailedProviderDoesNotAffectTheOtherEightMVPProviders() async throws {
     let providerIDs = [
         "anthropic", "codex", "deepseek", "gemini", "glm", "kimi", "minimax", "openai",
